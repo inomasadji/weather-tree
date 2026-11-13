@@ -121,7 +121,13 @@ function drawBranch(surface, x1, y1, x2, y2, width, color) {
  * @param {object} tree
  * @param {{sunAltitudeDeg: number, hourAngleDeg: number, light: number, groundColor: number}} options
  */
-export function drawShadow(surface, tree, { sunAltitudeDeg, hourAngleDeg, light, groundColor }) {
+export function drawShadow(surface, tree, {
+  sunAltitudeDeg,
+  hourAngleDeg,
+  light,
+  groundColor,
+  cloudPct = 0,
+}) {
   if (sunAltitudeDeg < 2 || light < 0.05) return;
 
   const altitude = Math.max(6, sunAltitudeDeg);
@@ -131,7 +137,10 @@ export function drawShadow(surface, tree, { sunAltitudeDeg, hourAngleDeg, light,
   const cx = tree.baseX + direction * length * 0.5;
   const rx = 14 + length * 0.55;
   const ry = 4 + length * 0.06;
-  const density = Math.min(0.5, 0.12 + (90 - altitude) / 260);
+  // Пасмурное небо даёт рассеянный свет — тень почти исчезает.
+  const density = Math.min(0.5, 0.12 + (90 - altitude) / 260) * (1 - (cloudPct / 100) * 0.85);
+  if (density < 0.02) return;
+
   const color = mixColor(groundColor, SHADOW, 0.55);
 
   for (let y = Math.round(tree.baseY - ry - 2); y <= tree.baseY + 2; y += 1) {

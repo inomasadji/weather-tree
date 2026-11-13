@@ -68,11 +68,16 @@ function browserCoordinates() {
 
     const timer = setTimeout(() => finish(null), GEO_TIMEOUT_MS);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => finish({ lat: position.coords.latitude, lon: position.coords.longitude }),
-      () => finish(null),
-      { enableHighAccuracy: false, timeout: GEO_TIMEOUT_MS, maximumAge: 10 * 60_000 },
-    );
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (position) => finish({ lat: position.coords.latitude, lon: position.coords.longitude }),
+        () => finish(null),
+        { enableHighAccuracy: false, timeout: GEO_TIMEOUT_MS, maximumAge: 10 * 60_000 },
+      );
+    } catch {
+      // В iframe/песочнице API может бросить синхронно.
+      finish(null);
+    }
   });
 }
 

@@ -254,6 +254,7 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     hourAngleDeg: sun.hourAngleDeg,
     light: palette.light,
     groundColor: conditions.snowCover > 0.5 ? palette.land.snow : palette.land.ground,
+    cloudPct,
   });
 
   drawTree(surface, treeCache.tree, {

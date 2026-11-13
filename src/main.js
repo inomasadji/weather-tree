@@ -7,6 +7,7 @@ import { readJson, writeJson } from './state/storage.js';
 import { isValidPlace, resolvePlace, samePlace, savePlace } from './state/place.js';
 import { buildWorldState, buildAmbientWorld } from './state/world.js';
 import { demoStation } from './state/demo.js';
+import { describeScene } from './model/describe.js';
 import { Surface } from './render/surface.js';
 import { renderScene } from './render/scene.js';
 import { createStage } from './ui/stage.js';
@@ -57,6 +58,14 @@ stage.paintPlaceholder();
 
 let refreshTimer = null;
 
+/**
+ * Время сцены. `?demo=1&at=2026-01-14T19:15` включает «машину времени»:
+ * и часы, и небо, и погода показывают выбранный момент.
+ */
+let timeShiftMs = 0;
+let demoMode = false;
+const sceneNow = () => Date.now() + timeShiftMs;
+
 /** Кэш погоды годится, только если он про ту же точку и не старше суток. */
 function readCachedStation() {
   const cached = readJson(STORAGE_KEYS.station);
@@ -70,7 +79,8 @@ function applyStation(station, source) {
   state.station = station;
   state.lastFetchAt = station.fetchedAt;
   state.provider = station.provider ?? state.provider;
-  state.world = buildWorldState(station);
+  // Мир строим на времени сцены, иначе в демо-режиме астрономия разъедется с часами.
+  state.world = buildWorldState(station, sceneNow());
 
   hud.setPlace(station.place ?? state.place);
   hud.setStation(station, {
@@ -79,6 +89,10 @@ function applyStation(station, source) {
   });
   hud.setSourceHint(state.provider ? `источник: ${state.provider}` : null);
   hud.setMessage(null);
+
+  if (state.world) {
+    canvas.setAttribute('aria-label', describeScene(state.world));
+  }
 }
 
 let retryTimer = null;
@@ -99,7 +113,7 @@ function scheduleRetry() {
 }
 
 async function loadWeather() {
-  if (!state.place) return;
+  if (!state.place || demoMode) return;
   if (state.inflight) return state.inflight;
 
   if (!state.station) hud.setSource('loading');
@@ -166,15 +180,15 @@ document.getElementById('refresh-btn').addEventListener('click', () => loadWeath
  * Время сцены. `?demo=1&at=2026-01-14T19:15` включает «машину времени»:
  * и часы, и небо, и погода показывают выбранный момент.
  */
-let timeShiftMs = 0;
-const sceneNow = () => Date.now() + timeShiftMs;
-
 const reducedMotion =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let lastWorldBuild = 0;
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   hud.tick(sceneNow());
+  if (demoMode) return;
   if (Date.now() - state.lastFetchAt > WEATHER.staleAfterMs) loadWeather();
 });
 
@@ -183,6 +197,13 @@ document.addEventListener('visibilitychange', () => {
 function frame(now) {
   const at = sceneNow();
   hud.tick(at);
+
+  // Раз в минуту пересобираем мир: солнце успевает сместиться, «день/ночь» — тоже.
+  if (state.station && at - lastWorldBuild > 60_000) {
+    state.world = buildWorldState(state.station, at);
+    lastWorldBuild = at;
+    canvas.setAttribute('aria-label', describeScene(state.world));
+  }
 
   if (state.world) {
     // При reduced-motion кадр остаётся правильным, но замирает.
@@ -201,6 +222,7 @@ async function start() {
   // Дополнительно: &at=2026-01-14T19:15, &code=75, &temp=-11, &cloud=95, &wind=28.
   const params = new URLSearchParams(location.search);
   if (params.has('demo')) {
+    demoMode = true;
     const atParam = params.get('at');
     const atMs = atParam ? Date.parse(atParam) : Date.now();
     if (Number.isFinite(atMs) && atParam) timeShiftMs = atMs - Date.now();
