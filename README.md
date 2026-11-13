@@ -41,6 +41,13 @@ npm test           # node --test, проверка чистых функций �
 Офлайн-режим для разработки: <http://localhost:5173/?demo=1> — фиксированная погода,
 ноль запросов в сеть, в HUD плашка «демо».
 
+Снапшоты кадра (PNG + увеличение + замер времени):
+
+```bash
+npm run snapshot                            # snapshots/out/m2-testcard@4x.png
+node tools/snapshot.mjs --scale 6 --bench   # крупнее и с бенчмарком
+```
+
 ## Лицензия
 
 MIT

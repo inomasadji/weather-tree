@@ -6,7 +6,8 @@
   "description": "Пиксельный погодный экран с процедурным деревом",
   "scripts": {
     "start": "node tools/dev-server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "snapshot": "node tools/snapshot.mjs --bench"
   },
   "engines": {
     "node": ">=20"

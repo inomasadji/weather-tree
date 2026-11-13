@@ -13,6 +13,18 @@ export function createStage(canvas, holder) {
   canvas.height = LOGICAL.height;
   ctx.imageSmoothingEnabled = false;
 
+  const frame = ctx.createImageData(LOGICAL.width, LOGICAL.height);
+
+  /**
+   * Копирует пиксельный буфер на canvas. Единственный путь попадания пикселей
+   * на экран — никаких drawImage со сглаживанием.
+   * @param {import('../render/surface.js').Surface} surface
+   */
+  function present(surface) {
+    frame.data.set(surface.data);
+    ctx.putImageData(frame, 0, 0);
+  }
+
   function paintPlaceholder() {
     ctx.fillStyle = PLACEHOLDER_BG;
     ctx.fillRect(0, 0, LOGICAL.width, LOGICAL.height);
@@ -35,5 +47,5 @@ export function createStage(canvas, holder) {
   paintPlaceholder();
   fit();
 
-  return { ctx, fit, paintPlaceholder };
+  return { ctx, fit, present, paintPlaceholder };
 }

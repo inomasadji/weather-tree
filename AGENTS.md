@@ -68,7 +68,7 @@
 ```bash
 npm test                        # unit + golden-frame
 npm start                       # ручная проверка в браузере
-node tools/snapshot.mjs --all   # глазами посмотреть эталонные кадры
+npm run snapshot                # рендер кадра в snapshots/out + замер времени
 ```
 
 Чеклист глазами: 9 июля 12:00 ясно; 14 января 19:15 метель; ночь; полярная ночь;
