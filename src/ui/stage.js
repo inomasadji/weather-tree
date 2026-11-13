@@ -30,14 +30,20 @@ export function createStage(canvas, holder) {
     ctx.fillRect(0, 0, LOGICAL.width, LOGICAL.height);
   }
 
-  /** Апскейл только целым множителем: иначе пиксели поплывут. */
+  /** Апскейл: целый множитель, если он даёт хотя бы 2×, иначе — дробный до ширины. */
   function fit() {
     const width = holder.clientWidth;
     const height = holder.clientHeight;
     if (!width || !height) return 1;
-    const scale = Math.max(1, Math.floor(Math.min(width / LOGICAL.width, height / LOGICAL.height)));
-    canvas.style.width = `${LOGICAL.width * scale}px`;
-    canvas.style.height = `${LOGICAL.height * scale}px`;
+
+    const raw = Math.min(width / LOGICAL.width, height / LOGICAL.height);
+    const integer = Math.floor(raw);
+    // На телефоне целый множитель даёт «марку» 320×180 посреди экрана.
+    // pixelated всё равно не размывает, поэтому там тянемся по ширине.
+    const scale = integer >= 2 ? integer : Math.max(raw, 1);
+
+    canvas.style.width = `${Math.round(LOGICAL.width * scale)}px`;
+    canvas.style.height = `${Math.round(LOGICAL.height * scale)}px`;
     return scale;
   }
 

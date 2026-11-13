@@ -316,7 +316,8 @@ DOM поверх canvas (а не пиксельный шрифт в буфере
 * [x] `render/color.js`: упаковка RGBA в uint32, `mixColor`, `withAlpha`
 * [x] `render/surface.js`: буфер, `pixel`, `fillRect`, линии Брезенхема, эллипсы,
       градиенты с полосами, Bayer 4×4, `veil` для дымки, детерминированный `noise`
-* [x] Апскейл: 320×180 → целый множитель, `image-rendering: pixelated`, `putImageData`
+* [x] Апскейл: 320×180 → целый множитель (≥2×), на узких экранах — дробный по ширине,
+      `image-rendering: pixelated`, вывод через `putImageData`
 * [x] `render/scene.js` — тест-карта M2 (небо, солнце, холмы, земля), заменяется в M3
 * [x] `tools/png.mjs` + `tools/snapshot.mjs`: PNG-кадр, увеличение ×N, хеш кадра, `--bench`
 * [x] Golden-тест на хеш кадра + тесты примитивов (50 тестов всего)
