@@ -1,0 +1,465 @@
+/* Weather Tree — пиксельная обвязка. Без зависимостей, без сглаживания углов. */
+
+:root {
+  color-scheme: dark;
+  --bg: #070b18;
+  --stage: #0b1026;
+  --panel: rgba(8, 14, 34, 0.84);
+  --line: #1d2947;
+  --line-soft: #142039;
+  --text: #cfe3ef;
+  --muted: #8fb6d9;
+  --accent: #a8d46a;
+  --warm: #f0c088;
+  --danger: #d97a2b;
+  --font: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Каркас ---------- */
+
+.app {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 100dvh;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 0;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #101a35 0%, #080d1e 60%, #05080f 100%);
+}
+
+.stage::after {
+  /* Тонкая сетка, чтобы пустая сцена не выглядела «сломанной». */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(143, 182, 217, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(143, 182, 217, 0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+  mask-image: radial-gradient(80% 80% at 50% 50%, #000 30%, transparent 100%);
+}
+
+#scene {
+  position: relative;
+  z-index: 1;
+  display: block;
+  image-rendering: pixelated;
+  background: var(--stage);
+  box-shadow: 0 0 0 3px var(--line-soft), 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* ---------- HUD ---------- */
+
+.hud {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  left: 16px;
+  width: min(21rem, calc(100% - 32px));
+  padding: 14px 16px 12px;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+.hud__clock {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.clock {
+  font-size: clamp(2.4rem, 7vw, 3.6rem);
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: #eaf4fb;
+  text-shadow: 3px 3px 0 #14203a;
+}
+
+.clock__seconds {
+  font-size: 0.95rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud__date {
+  margin: 4px 0 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud__weather {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 2px solid var(--line-soft);
+}
+
+.temp {
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  line-height: 1;
+  color: var(--warm);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud__weather-text p {
+  margin: 0;
+}
+
+.condition {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.feels {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 2px solid var(--line-soft);
+}
+
+.details__item {
+  min-width: 0;
+}
+
+.details dt {
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.details dd {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.hud__message {
+  margin: 10px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: var(--warm);
+}
+
+/* ---------- Нижняя панель ---------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #05080f;
+  border-top: 3px solid var(--line);
+}
+
+.place {
+  min-width: 0;
+  padding: 4px 0;
+  background: none;
+  border: 0;
+  border-bottom: 2px dashed var(--line);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.place:hover,
+.place:focus-visible {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.bar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.source {
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.source[data-state="live"] {
+  color: var(--accent);
+}
+
+.source[data-state="cache"] {
+  color: var(--warm);
+}
+
+.source[data-state="error"] {
+  color: var(--danger);
+}
+
+.icon-btn {
+  width: 30px;
+  height: 26px;
+  background: #0b1730;
+  border: 2px solid var(--line);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.icon-btn:active {
+  transform: translateY(1px);
+}
+
+/* ---------- Диалог выбора города ---------- */
+
+.dialog {
+  width: min(92vw, 34rem);
+  padding: 16px;
+  background: #0a1229;
+  color: var(--text);
+  border: 3px solid var(--line);
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.45);
+}
+
+.dialog::backdrop {
+  background: rgba(3, 6, 15, 0.72);
+}
+
+.dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.dialog__close {
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 2px solid var(--line);
+  color: var(--muted);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dialog__close:hover,
+.dialog__close:focus-visible {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.dialog__search input {
+  width: 100%;
+  padding: 10px 12px;
+  background: #0b1730;
+  border: 2px solid var(--line);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.dialog__search input::placeholder {
+  color: #5d7799;
+}
+
+.dialog__search input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.results {
+  max-height: 44dvh;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.results:empty {
+  margin: 0;
+}
+
+.result {
+  display: block;
+  width: 100%;
+  padding: 8px 6px;
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed var(--line);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.result:hover,
+.result:focus-visible {
+  background: rgba(168, 212, 106, 0.08);
+  outline: none;
+  color: var(--accent);
+}
+
+.result__name {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.result__meta {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.dialog__status {
+  margin: 8px 0 0;
+  min-height: 1em;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.noscript {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0;
+  padding: 12px;
+  background: var(--danger);
+  color: #1a0d04;
+  text-align: center;
+}
+
+/* ---------- Адаптив ---------- */
+
+@media (max-width: 560px) {
+  .hud {
+    top: 8px;
+    left: 8px;
+    padding: 10px 12px 8px;
+    width: calc(100% - 16px);
+  }
+
+  .details {
+    gap: 4px;
+  }
+
+  .details dd {
+    font-size: 0.75rem;
+  }
+
+  .bar {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-height: 520px) {
+  .hud {
+    top: 6px;
+    left: 6px;
+    padding: 8px 10px;
+    width: min(20rem, calc(100% - 12px));
+  }
+
+  .clock {
+    font-size: 1.8rem;
+  }
+
+  .details {
+    margin-top: 8px;
+    padding-top: 6px;
+  }
+}
+
+/* ---------- Доступность ---------- */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

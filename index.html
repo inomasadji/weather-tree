@@ -3,52 +3,87 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Weather Tree</title>
+  <title>Weather Tree — погода и дерево</title>
   <meta name="description" content="Пиксельный погодный экран с живым деревом: сезон, время суток и погода в одном кадре.">
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100dvh;
-      display: grid;
-      place-items: center;
-      background: #0b1026;
-      color: #cfe3ef;
-      font: 16px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      padding: 2rem;
-    }
-    main { max-width: 42rem; }
-    h1 {
-      margin: 0 0 .25rem;
-      font-size: clamp(2rem, 8vw, 3.5rem);
-      letter-spacing: .02em;
-      color: #a8d46a;
-      text-shadow: 3px 3px 0 #2f6b32;
-    }
-    p { margin: .5rem 0; color: #8fb6d9; }
-    code { color: #f0c088; }
-    .status {
-      display: inline-block;
-      margin-top: 1rem;
-      padding: .25rem .6rem;
-      border: 2px solid #3f8a3d;
-      color: #a8d46a;
-      text-transform: uppercase;
-      letter-spacing: .12em;
-      font-size: .75rem;
-    }
-    a { color: #f0c088; }
-  </style>
+  <meta name="theme-color" content="#070b18">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main>
-    <h1>Weather Tree</h1>
-    <p>Пиксельное дерево, которое живёт по времени года, времени суток и текущей погоде.</p>
-    <p>Сцена появится здесь на этапе M2–M5. План разработки — в репозитории:
-      <a href="https://github.com/inomasadji/weather-tree/blob/main/docs/PLAN.md">docs/PLAN.md</a>.
-    </p>
-    <span class="status">M0 · каркас</span>
-  </main>
+  <div class="app">
+    <section class="stage" id="stage">
+      <canvas id="scene" width="320" height="180" role="img" aria-label="Сцена: дерево и погода"></canvas>
+
+      <div class="hud">
+        <div class="hud__clock">
+          <span class="clock" id="clock-time" aria-live="polite">--:--</span>
+          <span class="clock__seconds" id="clock-seconds" aria-hidden="true">--</span>
+        </div>
+        <p class="hud__date" id="clock-date">—</p>
+
+        <div class="hud__weather">
+          <span class="temp" id="temp">—</span>
+          <div class="hud__weather-text">
+            <p class="condition" id="condition">—</p>
+            <p class="feels" id="feels">—</p>
+          </div>
+        </div>
+
+        <dl class="details">
+          <div class="details__item">
+            <dt>Ветер</dt>
+            <dd id="wind">—</dd>
+          </div>
+          <div class="details__item">
+            <dt>Влажность</dt>
+            <dd id="humidity">—</dd>
+          </div>
+          <div class="details__item">
+            <dt>Облачность</dt>
+            <dd id="cloud">—</dd>
+          </div>
+        </dl>
+
+        <p class="hud__message" id="hud-message" hidden></p>
+      </div>
+    </section>
+
+    <footer class="bar">
+      <button class="place" id="place-btn" type="button" title="Сменить город">
+        Определяем местоположение…
+      </button>
+      <div class="bar__right">
+        <span class="source" id="source" data-state="loading">загрузка</span>
+        <button class="icon-btn" id="refresh-btn" type="button" aria-label="Обновить погоду" title="Обновить">↻</button>
+      </div>
+    </footer>
+  </div>
+
+  <dialog class="dialog" id="place-dialog" aria-labelledby="place-title">
+    <form method="dialog" class="dialog__head">
+      <h2 class="dialog__title" id="place-title">Где смотрим погоду</h2>
+      <button class="dialog__close" value="cancel" aria-label="Закрыть">×</button>
+    </form>
+
+    <label class="dialog__search">
+      <span class="sr-only">Название города</span>
+      <input
+        id="place-input"
+        type="search"
+        placeholder="Москва, Берлин, Сидней…"
+        autocomplete="off"
+        spellcheck="false"
+        enterkeyhint="search"
+      >
+    </label>
+
+    <ul class="results" id="place-results" aria-label="Найденные города"></ul>
+    <p class="dialog__status" id="place-status" role="status"></p>
+  </dialog>
+
+  <noscript>
+    <p class="noscript">Для погодного экрана нужен JavaScript.</p>
+  </noscript>
+
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>
