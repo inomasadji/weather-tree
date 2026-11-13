@@ -5,7 +5,7 @@ import { LOGICAL, STORAGE_KEYS, WEATHER } from './config.js';
 import { fetchWeather } from './api/weather.js';
 import { readJson, writeJson } from './state/storage.js';
 import { isValidPlace, resolvePlace, samePlace, savePlace } from './state/place.js';
-import { buildWorldState } from './state/world.js';
+import { buildWorldState, buildAmbientWorld } from './state/world.js';
 import { demoStation } from './state/demo.js';
 import { Surface } from './render/surface.js';
 import { renderScene } from './render/scene.js';
@@ -40,8 +40,7 @@ const stage = createStage(canvas, stageHolder);
 
 // Пиксельный буфер живёт отдельно от DOM: его можно отрендерить и в Node.
 const surface = new Surface(LOGICAL.width, LOGICAL.height);
-renderScene(surface);
-stage.present(surface);
+stage.paintPlaceholder();
 
 let refreshTimer = null;
 
@@ -153,9 +152,16 @@ document.addEventListener('visibilitychange', () => {
   if (Date.now() - state.lastFetchAt > WEATHER.staleAfterMs) loadWeather();
 });
 
-// Часы тикают независимо от погоды: даже без сети экран жив.
-function frame() {
+// Часы тикают независимо от погоды, сцена перерисовывается каждый кадр:
+// небо и земля — из кэша, облака и мерцание звёзд — живые.
+function frame(now) {
   hud.tick();
+
+  if (state.world) {
+    renderScene(surface, state.world, Date.now(), now);
+    stage.present(surface);
+  }
+
   requestAnimationFrame(frame);
 }
 
@@ -174,6 +180,7 @@ async function start() {
 
   const { place } = await resolvePlace();
   state.place = place;
+  state.world = buildAmbientWorld(place);
   hud.setPlace(place);
 
   const cached = readCachedStation();

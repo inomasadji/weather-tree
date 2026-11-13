@@ -1,4 +1,4 @@
-// Снапшоты сцены: PNG для глаз и хеш кадра для golden-тестов.
+// Снапшоты сцены: PNG для глаз и хеши кадров для golden-тестов.
 // Использование: node tools/snapshot.mjs [--bench] [--scale 4]
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -10,6 +10,8 @@ import { performance } from 'node:perf_hooks';
 import { encodePng } from './png.mjs';
 import { Surface } from '../src/render/surface.js';
 import { renderScene } from '../src/render/scene.js';
+import { demoStation } from '../src/state/demo.js';
+import { buildWorldState } from '../src/state/world.js';
 import { LOGICAL } from '../src/config.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -18,6 +20,60 @@ const OUT_DIR = join(ROOT, 'snapshots', 'out');
 const argv = process.argv.slice(2);
 const scaleArg = argv.indexOf('--scale');
 const SCALE = scaleArg > -1 ? Math.max(1, Number(argv[scaleArg + 1]) || 4) : 4;
+
+const MOSCOW = { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' };
+const MURMANSK = { name: 'Мурманск', country: 'Россия', lat: 68.9585, lon: 33.0827, timeZone: 'Europe/Moscow' };
+const SYDNEY = { name: 'Сидней', country: 'Австралия', lat: -33.8688, lon: 151.2093, timeZone: 'Australia/Sydney' };
+
+/** Сценарии из docs/WEATHER-MAPPING.md (пока без дерева и осадков). */
+export const SCENARIOS = [
+  {
+    name: 'm3-july-noon',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 6, 9, 9, 0),
+    weather: { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 },
+  },
+  {
+    name: 'm3-january-night',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 0, 14, 16, 15),
+    weather: { tempC: -11, code: 75, cloudPct: 95, windKmh: 28, gustKmh: 45 },
+  },
+  {
+    name: 'm3-sunset',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 4, 3, 16, 40),
+    weather: { tempC: 9, code: 2, cloudPct: 35, windKmh: 12 },
+  },
+  {
+    name: 'm3-polar-night',
+    place: MURMANSK,
+    atMs: Date.UTC(2026, 11, 22, 10, 0),
+    weather: { tempC: -8, code: 3, cloudPct: 80, windKmh: 6 },
+  },
+  {
+    name: 'm3-sydney-noon',
+    place: SYDNEY,
+    atMs: Date.UTC(2026, 0, 15, 1, 0),
+    weather: { tempC: 28, code: 0, cloudPct: 10, windKmh: 10 },
+  },
+];
+
+/**
+ * @param {{place: object, atMs: number, weather: object}} scenario
+ * @returns {{world: object, atMs: number}}
+ */
+export function scenarioWorld(scenario) {
+  const station = demoStation(scenario.place, {
+    atMs: scenario.atMs,
+    weather: scenario.weather,
+  });
+
+  return {
+    world: buildWorldState(station, scenario.atMs),
+    atMs: scenario.atMs,
+  };
+}
 
 function upscale(source, factor) {
   const result = new Surface(source.width * factor, source.height * factor);
@@ -33,7 +89,7 @@ function upscale(source, factor) {
   return result;
 }
 
-function hashOf(surface) {
+export function hashOf(surface) {
   return createHash('sha256').update(surface.data).digest('hex').slice(0, 16);
 }
 
@@ -44,40 +100,33 @@ function save(name, surface) {
   return file;
 }
 
-function bench(surface, iterations = 200) {
+const surface = new Surface(LOGICAL.width, LOGICAL.height);
+mkdirSync(OUT_DIR, { recursive: true });
+
+for (const scenario of SCENARIOS) {
+  const { world, atMs } = scenarioWorld(scenario);
+  renderScene(surface, world, atMs, atMs);
+
+  save(scenario.name, surface);
+  save(`${scenario.name}@${SCALE}x`, upscale(surface, SCALE));
+  console.log(`${scenario.name.padEnd(20)} ${hashOf(surface)}`);
+}
+
+if (argv.includes('--bench')) {
+  const { world, atMs } = scenarioWorld(SCENARIOS[2]);
   const times = [];
 
-  for (let index = 0; index < iterations; index += 1) {
+  for (let index = 0; index < 200; index += 1) {
     const started = performance.now();
-    renderScene(surface);
+    renderScene(surface, world, atMs, atMs + index * 16);
     times.push(performance.now() - started);
   }
 
   times.sort((a, b) => a - b);
-  return {
-    iterations,
-    median: times[Math.floor(times.length / 2)],
-    p95: times[Math.floor(times.length * 0.95)],
-    max: times[times.length - 1],
-  };
-}
-
-mkdirSync(OUT_DIR, { recursive: true });
-
-const surface = new Surface(LOGICAL.width, LOGICAL.height);
-renderScene(surface);
-
-const frameFile = save('m2-testcard', surface);
-const zoomFile = save(`m2-testcard@${SCALE}x`, upscale(surface, SCALE));
-
-console.log(`кадр:      ${frameFile}`);
-console.log(`увеличение: ${zoomFile}`);
-console.log(`хеш кадра:  ${hashOf(surface)}`);
-
-if (argv.includes('--bench')) {
-  const stats = bench(surface);
   console.log(
-    `рендер x${stats.iterations}: медиана ${stats.median.toFixed(2)} мс, ` +
-      `p95 ${stats.p95.toFixed(2)} мс, максимум ${stats.max.toFixed(2)} мс`,
+    `рендер x200: медиана ${times[100].toFixed(2)} мс, ` +
+      `p95 ${times[190].toFixed(2)} мс, максимум ${times[199].toFixed(2)} мс`,
   );
 }
+
+console.log(`картинки: ${OUT_DIR}`);
