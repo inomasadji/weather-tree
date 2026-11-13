@@ -111,5 +111,10 @@ export function createHud(doc = document) {
     el.message.hidden = !text;
   }
 
-  return { tick, setStation, setSource, setPlace, setMessage, element: el };
+  /** Короткая подсказка под плашкой источника (какой провайдер ответил). */
+  function setSourceHint(text) {
+    if (el.source) el.source.title = text ?? '';
+  }
+
+  return { tick, setStation, setSource, setPlace, setMessage, setSourceHint, element: el };
 }

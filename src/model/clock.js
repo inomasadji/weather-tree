@@ -56,6 +56,34 @@ export function dayOfYear(date) {
 }
 
 /**
+ * Смещение пояса по IANA-имени на конкретный момент (учитывает летнее время).
+ * Нужно провайдерам, которые не отдают utc_offset_seconds (wttr.in).
+ * @param {string|null|undefined} timeZone
+ * @param {number} [atMs]
+ * @returns {number} секунды от UTC
+ */
+export function offsetSecondsFor(timeZone, atMs = Date.now()) {
+  const deviceOffset = -new Date(atMs).getTimezoneOffset() * 60;
+  if (!timeZone) return deviceOffset;
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'longOffset',
+    }).formatToParts(new Date(atMs));
+
+    const name = parts.find((part) => part.type === 'timeZoneName')?.value ?? '';
+    const match = /^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/.exec(name);
+    if (!match) return 0; // «GMT» без смещения
+
+    const sign = match[1] === '-' ? -1 : 1;
+    return sign * (Number(match[2]) * 3600 + Number(match[3] ?? 0) * 60);
+  } catch {
+    return deviceOffset;
+  }
+}
+
+/**
  * «сейчас», «3 мин назад», «2 ч назад».
  * @param {number} fromMs
  * @param {number} [atMs]

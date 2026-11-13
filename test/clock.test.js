@@ -6,6 +6,7 @@ import {
   formatClockParts,
   formatDate,
   formatRelative,
+  offsetSecondsFor,
   stationDate,
 } from '../src/model/clock.js';
 
@@ -45,4 +46,21 @@ test('formatRelative переводит минуты в человеческий
   assert.equal(formatRelative(now - 5 * 60_000, now), '5 мин назад');
   assert.equal(formatRelative(now - 3 * 3_600_000, now), '3 ч назад');
   assert.equal(formatRelative(now - 2 * 86_400_000, now), '2 сут назад');
+});
+
+test('offsetSecondsFor считает смещение по IANA-имени', () => {
+  const winter = Date.UTC(2026, 0, 14, 12, 0);
+  assert.equal(offsetSecondsFor('Europe/Moscow', winter), 3 * 3600);
+  assert.equal(offsetSecondsFor('Asia/Yekaterinburg', winter), 5 * 3600);
+  assert.equal(offsetSecondsFor('UTC', winter), 0);
+
+  // Летнее время: Берлин зимой +1, летом +2.
+  assert.equal(offsetSecondsFor('Europe/Berlin', winter), 1 * 3600);
+  assert.equal(offsetSecondsFor('Europe/Berlin', Date.UTC(2026, 6, 9, 12, 0)), 2 * 3600);
+});
+
+test('offsetSecondsFor без пояса отдаёт пояс устройства', () => {
+  const offset = offsetSecondsFor(null, Date.UTC(2026, 0, 14, 12, 0));
+  assert.equal(typeof offset, 'number');
+  assert.equal(offset, -new Date(Date.UTC(2026, 0, 14, 12, 0)).getTimezoneOffset() * 60);
 });

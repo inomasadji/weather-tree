@@ -14,8 +14,21 @@ export const WEATHER = {
   staleAfterMs: 12 * 60_000,
   /** Кэш живёт сутки: даже суточной давности кадр лучше пустого экрана. */
   cacheTtlMs: 24 * 60 * 60_000,
+  timeoutMs: 6_000,
+  retries: 0,
+  /** Сколько раз пробуем перезапросить, если данных нет вообще. */
+  retryAfterFailureMs: 45_000,
+  retryBudget: 5,
+};
+
+/**
+ * Второй провайдер. Нужен, потому что api.open-meteo.com недоступен из некоторых
+ * сетей (например, из РФ). wttr.in — тоже без ключа и с открытым CORS.
+ */
+export const WTTR = {
+  baseUrl: 'https://wttr.in',
   timeoutMs: 8_000,
-  retries: 2,
+  retries: 0,
 };
 
 export const GEOCODE = {
@@ -30,6 +43,7 @@ export const GEOCODE = {
 export const STORAGE_KEYS = {
   place: 'weather-tree:place:v1',
   station: 'weather-tree:station:v1',
+  provider: 'weather-tree:provider:v1',
 };
 
 /** Если всё остальное не сработало — показываем Москву. */
@@ -38,6 +52,7 @@ export const FALLBACK_PLACE = {
   country: 'Россия',
   lat: 55.7558,
   lon: 37.6173,
+  timeZone: 'Europe/Moscow',
 };
 
 /** Локали форматирования. */

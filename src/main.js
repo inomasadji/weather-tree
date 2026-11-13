@@ -2,7 +2,7 @@
 // На M2 сюда добавится рендер сцены, на M3–M5 — слои.
 
 import { STORAGE_KEYS, WEATHER } from './config.js';
-import { fetchStation } from './api/openMeteo.js';
+import { fetchWeather } from './api/weather.js';
 import { readJson, writeJson } from './state/storage.js';
 import { isValidPlace, resolvePlace, samePlace, savePlace } from './state/place.js';
 import { buildWorldState } from './state/world.js';
@@ -12,8 +12,9 @@ import { createHud } from './ui/hud.js';
 import { createPlaceDialog } from './ui/controls.js';
 
 const REASON_TEXT = {
-  timeout: 'сервер не ответил',
-  network: 'нет соединения',
+  timeout: 'сервис погоды не ответил',
+  network: 'нет соединения с сервисом погоды',
+  parse: 'сервис вернул непонятный ответ',
   'http:429': 'превышен лимит запросов',
   shape: 'неожиданный ответ сервиса',
 };
@@ -24,8 +25,10 @@ const state = {
   place: null,
   station: null,
   world: null,
+  provider: null,
   inflight: null,
   lastFetchAt: 0,
+  failures: 0,
 };
 
 const canvas = document.getElementById('scene');
@@ -47,11 +50,30 @@ function readCachedStation() {
 function applyStation(station, source) {
   state.station = station;
   state.lastFetchAt = station.fetchedAt;
+  state.provider = station.provider ?? state.provider;
   state.world = buildWorldState(station);
 
   hud.setPlace(station.place ?? state.place);
   hud.setStation(station, { source, fetchedAt: station.fetchedAt });
+  hud.setSourceHint(state.provider ? `источник: ${state.provider}` : null);
   hud.setMessage(null);
+}
+
+let retryTimer = null;
+
+function clearRetry() {
+  if (!retryTimer) return;
+  clearTimeout(retryTimer);
+  retryTimer = null;
+}
+
+/** Если данных нет вообще — не ждём десять минут, пробуем ещё раз через 45 с. */
+function scheduleRetry() {
+  if (retryTimer || state.failures >= WEATHER.retryBudget) return;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (!document.hidden) loadWeather();
+  }, WEATHER.retryAfterFailureMs);
 }
 
 async function loadWeather() {
@@ -61,23 +83,28 @@ async function loadWeather() {
   if (!state.station) hud.setSource('loading');
 
   state.inflight = (async () => {
-    const result = await fetchStation(state.place);
+    const result = await fetchWeather(state.place);
 
     if (result.ok) {
+      state.failures = 0;
+      clearRetry();
       applyStation(result.station, 'live');
       writeJson(STORAGE_KEYS.station, result.station);
       return;
     }
 
+    state.failures += 1;
+
     const cached = readCachedStation();
     if (cached && samePlace(cached.place, state.place)) {
       applyStation(cached, 'cache');
       hud.setMessage(`Погода не обновилась: ${humanReason(result.reason)}. Показаны последние данные.`);
-      return;
+    } else {
+      hud.setSource('error');
+      hud.setMessage(`Не удалось получить погоду: ${humanReason(result.reason)}.`);
     }
 
-    hud.setSource('error');
-    hud.setMessage(`Не удалось получить погоду: ${humanReason(result.reason)}.`);
+    scheduleRetry();
   })().finally(() => {
     state.inflight = null;
   });
@@ -103,6 +130,8 @@ const placeDialog = createPlaceDialog(
     savePlace(place);
     state.place = place;
     state.station = null;
+    state.failures = 0;
+    clearRetry();
     hud.setPlace(place);
     await loadWeather();
   },

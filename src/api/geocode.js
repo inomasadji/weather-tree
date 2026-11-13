@@ -6,6 +6,15 @@ import { fetchJson } from './http.js';
 
 const round = (value) => Math.round(value * 10_000) / 10_000;
 
+/** Пояс устройства — лучшее приближение для координат, полученных от геолокации. */
+function deviceTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Поиск города по названию (Open-Meteo Geocoding).
  * @param {string} query
@@ -35,7 +44,7 @@ export async function searchPlaces(query) {
     region: item.admin1 ?? '',
     lat: round(item.latitude),
     lon: round(item.longitude),
-    timezone: item.timezone ?? null,
+    timeZone: item.timezone ?? null,
   }));
 
   return { ok: true, items };
@@ -54,6 +63,7 @@ export async function reverseGeocode(lat, lon) {
     country: '',
     lat: round(lat),
     lon: round(lon),
+    timeZone: deviceTimeZone(),
   };
 
   const params = new URLSearchParams({
@@ -81,12 +91,14 @@ export async function reverseGeocode(lat, lon) {
       country: data.countryName ?? region,
       lat: round(lat),
       lon: round(lon),
+      timeZone: deviceTimeZone(),
     },
   };
 }
 
 /**
  * Грубая локация по IP — последний шанс перед демо-городом.
+ * Название стараемся локализовать обратным геокодированием, но пояс берём из IP.
  * @returns {Promise<{ok: true, place: object} | {ok: false, reason: string}>}
  */
 export async function locateByIp() {
@@ -98,13 +110,32 @@ export async function locateByIp() {
     return { ok: false, reason: 'shape' };
   }
 
+  const place = {
+    name: data.city || data.region || data.country || 'Текущее место',
+    country: data.country ?? '',
+    lat: round(data.latitude),
+    lon: round(data.longitude),
+    timeZone: data.timezone?.id ?? null,
+  };
+
+  return { ok: true, place: await localizeName(place) };
+}
+
+/**
+ * Подменяет англоязычное имя из IP-базы на lokalное, если удалось.
+ * @param {object} place
+ * @returns {Promise<object>}
+ */
+async function localizeName(place) {
+  const reverse = await reverseGeocode(place.lat, place.lon);
+  const candidate = reverse?.place;
+  const isCoordinates = /^-?\d+[.,]\d+,\s*-?\d+[.,]\d+$/.test(candidate?.name ?? '');
+
+  if (!candidate || !candidate.name || isCoordinates) return place;
+
   return {
-    ok: true,
-    place: {
-      name: data.city || data.region || data.country || 'Текущее место',
-      country: data.country ?? '',
-      lat: round(data.latitude),
-      lon: round(data.longitude),
-    },
+    ...place,
+    name: candidate.name,
+    country: candidate.country || place.country,
   };
 }
