@@ -23,6 +23,19 @@ const REASON_TEXT = {
 
 const humanReason = (reason) => REASON_TEXT[reason] ?? String(reason);
 
+/**
+ * @param {URLSearchParams} params
+ * @param {string} name
+ * @param {number} fallback
+ * @returns {number}
+ */
+function numberParam(params, name, fallback) {
+  const raw = params.get(name);
+  if (raw === null) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
 const state = {
   place: null,
   station: null,
@@ -60,7 +73,10 @@ function applyStation(station, source) {
   state.world = buildWorldState(station);
 
   hud.setPlace(station.place ?? state.place);
-  hud.setStation(station, { source, fetchedAt: station.fetchedAt });
+  hud.setStation(station, {
+    source,
+    fetchedAt: source === 'demo' ? null : station.fetchedAt,
+  });
   hud.setSourceHint(state.provider ? `источник: ${state.provider}` : null);
   hud.setMessage(null);
 }
@@ -146,19 +162,31 @@ const placeDialog = createPlaceDialog(
 document.getElementById('place-btn').addEventListener('click', () => placeDialog.open());
 document.getElementById('refresh-btn').addEventListener('click', () => loadWeather());
 
+/**
+ * Время сцены. `?demo=1&at=2026-01-14T19:15` включает «машину времени»:
+ * и часы, и небо, и погода показывают выбранный момент.
+ */
+let timeShiftMs = 0;
+const sceneNow = () => Date.now() + timeShiftMs;
+
+const reducedMotion =
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
-  hud.tick();
+  hud.tick(sceneNow());
   if (Date.now() - state.lastFetchAt > WEATHER.staleAfterMs) loadWeather();
 });
 
 // Часы тикают независимо от погоды, сцена перерисовывается каждый кадр:
 // небо и земля — из кэша, облака и мерцание звёзд — живые.
 function frame(now) {
-  hud.tick();
+  const at = sceneNow();
+  hud.tick(at);
 
   if (state.world) {
-    renderScene(surface, state.world, Date.now(), now);
+    // При reduced-motion кадр остаётся правильным, но замирает.
+    renderScene(surface, state.world, at, reducedMotion ? 0 : now);
     stage.present(surface);
   }
 
@@ -170,8 +198,35 @@ async function start() {
   requestAnimationFrame(frame);
 
   // ?demo=1 — офлайн-режим для разработки и скриншотов, без единого запроса в сеть.
-  if (new URLSearchParams(location.search).has('demo')) {
-    const station = demoStation();
+  // Дополнительно: &at=2026-01-14T19:15, &code=75, &temp=-11, &cloud=95, &wind=28.
+  const params = new URLSearchParams(location.search);
+  if (params.has('demo')) {
+    const atParam = params.get('at');
+    const atMs = atParam ? Date.parse(atParam) : Date.now();
+    if (Number.isFinite(atMs) && atParam) timeShiftMs = atMs - Date.now();
+
+    const place = {
+      name: params.get('name') ?? 'Москва',
+      country: params.get('country') ?? 'Россия',
+      lat: numberParam(params, 'lat', 55.7558),
+      lon: numberParam(params, 'lon', 37.6173),
+      timeZone: params.get('tz') ?? 'Europe/Moscow',
+    };
+
+    const overrides = {};
+    for (const [param, field] of [
+      ['temp', 'tempC'],
+      ['code', 'code'],
+      ['cloud', 'cloudPct'],
+      ['wind', 'windKmh'],
+      ['gust', 'gustKmh'],
+      ['humidity', 'humidity'],
+    ]) {
+      const value = numberParam(params, param, NaN);
+      if (Number.isFinite(value)) overrides[field] = value;
+    }
+
+    const station = demoStation(place, { atMs, weather: overrides });
     state.place = station.place;
     hud.setPlace(station.place);
     applyStation(station, 'demo');

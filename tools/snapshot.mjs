@@ -57,6 +57,24 @@ export const SCENARIOS = [
     atMs: Date.UTC(2026, 0, 15, 1, 0),
     weather: { tempC: 28, code: 0, cloudPct: 10, windKmh: 10 },
   },
+  {
+    name: 'm5-rain',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 9, 21, 14, 40),
+    weather: { tempC: 7, code: 61, cloudPct: 90, windKmh: 15, humidity: 88 },
+  },
+  {
+    name: 'm5-fog',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 10, 13, 18, 0),
+    weather: { tempC: 2, code: 45, cloudPct: 100, windKmh: 3, humidity: 98 },
+  },
+  {
+    name: 'm5-storm',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 6, 9, 15, 0),
+    weather: { tempC: 22, code: 95, cloudPct: 100, windKmh: 45, gustKmh: 70, humidity: 80 },
+  },
 ];
 
 /**

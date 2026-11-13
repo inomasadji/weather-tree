@@ -74,7 +74,13 @@ export function createHud(doc = document) {
 
     if (Number.isFinite(station.utcOffsetSeconds)) offsetSeconds = station.utcOffsetSeconds;
     sourceKind = source;
-    fetchedAt = Number.isFinite(at) ? at : Number.isFinite(station.fetchedAt) ? station.fetchedAt : null;
+    fetchedAt = at === null
+      ? null
+      : Number.isFinite(at)
+        ? at
+        : Number.isFinite(station.fetchedAt)
+          ? station.fetchedAt
+          : null;
 
     setText(el.temp, formatTemp(current.tempC));
     setText(el.condition, describeWeather(current.code, current.tempC));

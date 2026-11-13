@@ -6,6 +6,7 @@ import { hexColor, mixColor } from '../render/color.js';
 import { seasonKey, seasonWeights } from './season.js';
 
 const NIGHT = hexColor('#0a1024');
+const STORM_SKY = hexColor('#2b2740');
 
 /** Опорные состояния. altitude — высота солнца в градусах. */
 const KNOTS = [
@@ -247,29 +248,33 @@ export function shade(color, light) {
 
 /**
  * Полная палитра кадра.
- * @param {{altitudeDeg: number, cloudPct?: number, seasonPhase?: number}} input
+ * @param {{altitudeDeg: number, cloudPct?: number, seasonPhase?: number, storm?: boolean}} input
  */
-export function scenePalette({ altitudeDeg, cloudPct = 0, seasonPhase = 0.5 }) {
+export function scenePalette({ altitudeDeg, cloudPct = 0, seasonPhase = 0.5, storm = false }) {
   const base = altitudePalette(altitudeDeg);
   const tint = seasonTint(seasonPhase);
   // Гамма: на низком солнце земля темнеет быстрее, чем небо светлеет.
-  const light = Math.pow(clamp01((altitudeDeg + 6) / 26), 1.4);
+  let light = Math.pow(clamp01((altitudeDeg + 6) / 26), 1.4);
 
   const land = LAND[seasonKey(seasonPhase)] ?? LAND.summer;
   const clouds = Math.min(1, Math.max(0, (cloudPct ?? 0) / 100));
 
+  // Гроза: небо и облака уходят в свинцово-фиолетовое, земля темнеет.
+  const darken = (color) => (storm ? mixColor(color, STORM_SKY, 0.68) : color);
+  if (storm) light *= 0.38;
+
   return {
     key: base.key,
     light,
-    sky: base.sky.map((color) => applyTint(color, tint)),
+    sky: base.sky.map((color) => darken(applyTint(color, tint))),
     sunCore: base.sunCore,
     sunEdge: base.sunEdge,
     sunHalo: base.sunHalo,
     moonLit: base.moonLit,
     moonShadow: base.moonShadow,
-    cloudLight: applyTint(base.cloudLight, tint),
-    cloudDark: applyTint(base.cloudDark, tint),
-    cloudRim: applyTint(base.cloudRim, tint),
+    cloudLight: darken(applyTint(base.cloudLight, tint)),
+    cloudDark: darken(applyTint(base.cloudDark, tint)),
+    cloudRim: darken(applyTint(base.cloudRim, tint)),
     star: base.star,
     /** Насколько видны звёзды: темнота × прозрачность неба. */
     starOpacity: clamp01((-altitudeDeg - 4) / 10) * (1 - clouds * 0.85),
@@ -280,6 +285,8 @@ export function scenePalette({ altitudeDeg, cloudPct = 0, seasonPhase = 0.5 }) {
       ground: shade(hexColor(land.ground), light),
       dark: shade(hexColor(land.dark), light),
       light: shade(hexColor(land.light), light),
+      snow: shade(hexColor('#dfe9f1'), light),
+      snowLight: shade(hexColor('#f4f9fc'), light),
     },
   };
 }

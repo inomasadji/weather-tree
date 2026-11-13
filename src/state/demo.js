@@ -25,6 +25,10 @@ const DEFAULT_WEATHER = {
  * @returns {object} Station того же формата, что отдаёт api/openMeteo.js
  */
 export function demoStation(place = FALLBACK_PLACE, { atMs = Date.now(), weather = {} } = {}) {
+  const current = { ...DEFAULT_WEATHER, ...weather };
+  // Если подменили температуру, «ощущается как» не должно остаться летним.
+  if (weather.tempC !== undefined && weather.feelsC === undefined) current.feelsC = weather.tempC;
+
   return {
     place: {
       name: place.name,
@@ -36,7 +40,7 @@ export function demoStation(place = FALLBACK_PLACE, { atMs = Date.now(), weather
     utcOffsetSeconds: offsetSecondsFor(place.timeZone ?? 'Europe/Moscow', atMs),
     observedAt: null,
     fetchedAt: atMs,
-    current: { ...DEFAULT_WEATHER, ...weather },
+    current,
     daily: { sunrise: null, sunset: null, daylightSeconds: null },
   };
 }
