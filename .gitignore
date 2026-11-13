@@ -1,0 +1,28 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sublime-*
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Local env / secrets
+.env
+.env.*
+
+# Build / test output
+dist/
+_site/
+coverage/
+tmp/
+*.log
+
+# Generated snapshots (локальные прогоны)
+snapshots/out/

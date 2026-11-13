@@ -1,0 +1,14 @@
+{
+  "name": "weather-tree",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Пиксельный погодный экран с процедурным деревом",
+  "scripts": {
+    "start": "node tools/dev-server.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
