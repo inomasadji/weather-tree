@@ -4,7 +4,6 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 
 import { Surface } from '../src/render/surface.js';
 import { renderScene, HORIZON } from '../src/render/scene.js';
@@ -12,10 +11,15 @@ import { LOGICAL } from '../src/config.js';
 import { demoStation } from '../src/state/demo.js';
 import { buildWorldState } from '../src/state/world.js';
 import { scenePalette } from '../src/model/palette.js';
+import { SCENARIOS, scenarioWorld, hashOf } from '../tools/snapshot.mjs';
 
 const MOSCOW = { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' };
 
-const EXPECTED_HASH = '5ee153e1c3174f5f';
+const GOLDEN_HASHES = {
+  'm3-july-noon': '5ee153e1c3174f5f',
+  'm3-january-night': '10648ec95a29a94c',
+  'm5-storm': '3fbe6f172a23e043',
+};
 
 const SUMMER_NOON = Date.UTC(2026, 6, 9, 9, 0);
 const WINTER_NIGHT = Date.UTC(2026, 0, 14, 16, 15);
@@ -25,9 +29,6 @@ function worldFor(atMs, weather) {
   const station = demoStation(MOSCOW, { atMs, weather });
   return buildWorldState(station, atMs);
 }
-
-const hashOf = (surface) =>
-  createHash('sha256').update(surface.data).digest('hex').slice(0, 16);
 
 test('сцена рендерится детерминированно', () => {
   const world = worldFor(SUMMER_NOON, { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 });
@@ -40,13 +41,18 @@ test('сцена рендерится детерминированно', () => {
   assert.deepEqual(first.data, second.data);
 });
 
-test('golden-кадр летнего полдня не изменился', () => {
-  const world = worldFor(SUMMER_NOON, { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 });
-  const surface = new Surface(LOGICAL.width, LOGICAL.height);
+for (const [name, expected] of Object.entries(GOLDEN_HASHES)) {
+  test(`golden-кадр ${name} не изменился`, () => {
+    const scenario = SCENARIOS.find((item) => item.name === name);
+    assert.ok(scenario, `не найден сценарий ${name}`);
 
-  renderScene(surface, world, SUMMER_NOON, SUMMER_NOON);
-  assert.equal(hashOf(surface), EXPECTED_HASH);
-});
+    const { world, atMs } = scenarioWorld(scenario);
+    const surface = new Surface(LOGICAL.width, LOGICAL.height);
+
+    renderScene(surface, world, atMs, atMs);
+    assert.equal(hashOf(surface), expected);
+  });
+}
 
 test('без мира буфер остаётся нетронутым', () => {
   const surface = new Surface(LOGICAL.width, LOGICAL.height);
