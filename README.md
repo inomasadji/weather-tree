@@ -6,9 +6,14 @@
 
 **Демо:** <https://inomasadji.github.io/weather-tree/>
 
-**Состояние на 14.11.2026:** MVP · 159 тестов + e2e · 0 зависимостей · кадр ~0.56 мс · 4 породы + 2.5D-пейзаж · `ru`/`en` ·
+**Состояние на 14.11.2026:** M0–M12 · 183 теста + e2e · 0 зависимостей · кадр ~0.6 мс
+(3.7 мс под эмуляцией слабого CPU ×4) · 18 golden-кадров · 4 породы + 2.5D-пейзаж · `ru`/`en` ·
 оба сценария из ТЗ воспроизводятся на проде. Известные долги —
 [docs/AUDIT.md](docs/AUDIT.md) и [открытые issues](https://github.com/inomasadji/weather-tree/issues).
+
+| Рассвет в июле | Зимние сумерки, иней | Осенний дождь |
+|---|---|---|
+| ![](docs/screenshots/hero-summer-dawn.png) | ![](docs/screenshots/hero-winter-dusk.png) | ![](docs/screenshots/hero-autumn-rain.png) |
 
 | Лето, полдень, ясно | Зима, 19:15, метель | Закат |
 |---|---|---|
