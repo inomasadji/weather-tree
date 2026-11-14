@@ -22,9 +22,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      # Тестов пока нет — npm test просто завершится успешно (node --test без файлов).
-      - name: Unit tests
+      - name: Unit, golden and budget tests
         run: npm test
+      - name: Browser e2e smoke
+        run: npm run e2e -- --require-browser
 
   deploy:
     needs: test
