@@ -6,7 +6,7 @@
 
 **Демо:** <https://inomasadji.github.io/weather-tree/>
 
-**Состояние на 14.11.2026:** MVP · 130 тестов · 0 зависимостей · кадр 0.68–1.02 мс ·
+**Состояние на 14.11.2026:** MVP · 141 тест · 0 зависимостей · кадр 0.68–1.02 мс ·
 оба сценария из ТЗ воспроизводятся на проде. Известные долги —
 [docs/AUDIT.md](docs/AUDIT.md) и [открытые issues](https://github.com/inomasadji/weather-tree/issues).
 
@@ -50,7 +50,7 @@
 
 ```bash
 npm start          # статический сервер на http://localhost:5173 (без зависимостей)
-npm test           # 130 тестов: модель, API, контроллер, рантайм, golden-кадры
+npm test           # 141 тест: модель, API, контроллер, рантайм, golden-кадры
 npm run snapshot   # PNG-кадры сценариев в snapshots/out + замер времени
 ```
 
