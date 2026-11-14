@@ -46,3 +46,17 @@ test('дождь и туман попадают в описание', () => {
 test('без мира — нейтральная подпись', () => {
   assert.equal(describeScene(null), 'Погодная сцена с деревом');
 });
+
+test('описание учитывает породу дерева по координатам', () => {
+  const north = describeScene({
+    ...worldWith({ code: 0, tempC: -5 }, { season: 0.05 }),
+    place: { lat: 68.9585, lon: 33.0827 },
+  });
+  assert.match(north, /хвойное дерево/);
+
+  const south = describeScene({
+    ...worldWith({ code: 0, tempC: 29 }, { season: 0.5 }),
+    place: { lat: 1.35, lon: 103.82 },
+  });
+  assert.match(south, /южное дерево/);
+});

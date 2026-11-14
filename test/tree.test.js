@@ -121,3 +121,25 @@ test('drawLeafFall рисует опад осенью и молчит без о�
   });
   assert.equal(calmSummer.pixels.some((pixel) => pixel !== BLACK), false);
 });
+
+test('все 4 породы строят валидную геометрию и рендерятся без ошибок', () => {
+  for (const species of ['oak', 'birch', 'conifer', 'tropical']) {
+    const tree = buildTree(12345, { species });
+    assert.ok(tree.segments.length >= 6, `${species}: мало сегментов`);
+    assert.equal(tree.species, species);
+
+    const surface = new Surface(320, 180);
+    surface.clear(BLACK);
+    drawTree(surface, tree, {
+      foliage: foliageState(0.55, { tempC: 22, windKmh: 6, species }),
+      timeMs: 1000,
+      windAmp: 0.1,
+      windDirDeg: 90,
+      light: 1,
+      snowLoad: 0,
+      snowColor: WHITE,
+      wetness: 0,
+    });
+    assert.ok(surface.pixels.filter((pixel) => pixel !== BLACK).length > 300, `${species}: пустой рендер`);
+  }
+});
