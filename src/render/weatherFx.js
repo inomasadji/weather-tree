@@ -35,35 +35,39 @@ function drawPrecipitation(surface, precip, { timeMs, windKmh, light }) {
 
   const snowing = precip.type === 'snow' || precip.type === 'grains';
   const count = Math.round(config.count * (0.45 + precip.intensity * 0.75));
-  const color = shade(snowing ? SNOW_COLOR : RAIN_COLOR, Math.max(0.3, light));
+  const nearColor = shade(snowing ? SNOW_COLOR : RAIN_COLOR, Math.max(0.3, light));
+  const farColor = shade(snowing ? SNOW_COLOR : RAIN_COLOR, Math.max(0.2, light * 0.72));
   const seconds = timeMs / 1000;
   const wind = Math.min(2.4, windKmh / 22);
   const spanX = surface.width + 40;
   const spanY = surface.height + 24;
 
   for (let index = 0; index < count; index += 1) {
+    // Два плана глубины: дальний слой (треть частиц) мельче, медленнее и приглушён.
+    const isFar = index % 3 === 0;
+    const depthSpeed = isFar ? 0.72 : 1.1;
+    const color = isFar ? farColor : nearColor;
     const baseX = hash2(index, 1, 3) * spanX;
     const baseY = hash2(index, 2, 7) * spanY;
-    const speed = 0.7 + hash2(index, 3, 11) * 0.6;
+    const speed = (0.7 + hash2(index, 3, 11) * 0.6) * depthSpeed;
     const phase = hash2(index, 4, 13) * Math.PI * 2;
 
-    const x = wrap(baseX + seconds * config.fall * (0.4 + wind) + Math.sin(seconds * 2 + phase) * (snowing ? 4 : 1), spanX) - 20;
+    const x = wrap(baseX + seconds * config.fall * depthSpeed * (0.4 + wind) + Math.sin(seconds * 2 + phase) * (snowing ? 4 : 1), spanX) - 20;
     const y = wrap(baseY + seconds * config.fall * speed, spanY) - 12;
 
     if (precip.type === 'rain' || precip.type === 'drizzle') {
-      // Штрих под углом ветра: чем сильнее ветер, тем более наклонный.
-      const slant = Math.max(1, Math.round(config.size * wind));
+      const size = isFar ? Math.max(1, config.size - 1) : config.size;
+      const slant = Math.max(1, Math.round(size * wind));
       surface.line(
         Math.round(x + slant),
-        Math.round(y + config.size),
+        Math.round(y + size),
         Math.round(x),
         Math.round(y),
         color,
       );
     } else {
-      const size = hash2(index, 5, 17) > 0.85 ? 2 : 1;
-      // В метель снежинка летит почти горизонтально — рисуем штрих по ветру.
-      const streak = wind > 0.45 && size === 1 ? Math.min(4, 1 + Math.round(wind * 1.6)) : size;
+      const size = !isFar && hash2(index, 5, 17) > 0.85 ? 2 : 1;
+      const streak = !isFar && wind > 0.45 && size === 1 ? Math.min(4, 1 + Math.round(wind * 1.6)) : size;
       surface.fillRect(Math.round(x), Math.round(y), streak, size, color);
     }
   }
@@ -163,7 +167,21 @@ function drawFlash(surface, timeMs, palette, horizonY) {
  * @param {object} conditions результат sceneConditions
  * @param {{palette: object, timeMs: number}} options
  */
-export function drawGroundWetness(surface, conditions, { palette, timeMs, horizonY = HORIZON_Y }) {
+export function drawGroundWetness(surface, conditions, { palette, timeMs, horizonY = HORIZON_Y, windKmh = 0 }) {
+  // Диагональные снежные перемёты в метель (2:1).
+  if (conditions.snowCover > 0.35 && windKmh > 18) {
+    const driftColor = palette.land.snowLight;
+    const spanY = Math.max(8, surface.height - horizonY - 8);
+    for (let i = 0; i < 6; i += 1) {
+      const x0 = Math.round(hash2(i, 8, 53) * (surface.width - 28));
+      const y0 = Math.round(horizonY + 6 + hash2(i, 9, 53) * spanY);
+      const len = 10 + Math.round(hash2(i, 10, 53) * 14);
+      for (let dx = 0; dx < len; dx += 1) {
+        surface.pixel(x0 + dx, y0 + Math.floor(dx / 2), driftColor);
+      }
+    }
+  }
+
   const wetness = conditions.wetness;
   if (wetness < 0.05) return;
 
@@ -180,26 +198,28 @@ export function drawGroundWetness(surface, conditions, { palette, timeMs, horizo
     withAlpha(mixColor(palette.land.ground, hexColor('#0a1220'), 0.45), Math.round(wetness * 150)),
   );
 
-  // Лужи: отражение неба у горизонта плюс бегущая рябь.
+  // Лужи в 2.5D-ракурсе: дальние узкие, ближние шире и выше.
   const reflection = mixColor(
     mixColor(palette.sky[1] ?? palette.sky[0], palette.land.ground, 0.45),
     hexColor('#0a1220'),
     0.15,
   );
 
+  const spanY = Math.max(12, surface.height - top - 10);
   const puddleStep = Math.max(24, (width - 72) / 4);
   for (let index = 0; index < 5; index += 1) {
+    const depth = 0.14 + hash2(index, 2, 61) * 0.68;
     const cx = Math.round(18 + index * puddleStep + hash2(index, 1, 61) * 26);
-    const cy = Math.round(top + 8 + hash2(index, 2, 61) * 16);
-    const rx = Math.round(7 + hash2(index, 3, 61) * 10);
-    const ry = Math.round(2 + hash2(index, 4, 61) * 2);
+    const cy = Math.round(top + 4 + depth * spanY);
+    const rx = Math.round(5 + depth * 9 + hash2(index, 3, 61) * 4);
+    const ry = Math.max(1, Math.round(rx * (0.2 + depth * 0.2)));
 
     surface.ellipse(cx, cy, rx, ry, reflection);
 
     for (let ripple = 0; ripple < 2; ripple += 1) {
       const phase = (timeMs / 1300 + index * 0.37 + ripple * 0.5) % 1;
       const half = Math.round(rx * (0.25 + phase * 0.7));
-      surface.fillRect(cx - half, cy - 1, 2 + Math.round((1 - phase) * 3), 1, rim);
+      surface.fillRect(cx - half, cy - (ry > 2 ? 1 : 0), 2 + Math.round((1 - phase) * 3), 1, rim);
     }
   }
 

@@ -152,16 +152,17 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     species,
   });
 
-  const snowBucket = Math.round(conditions.snowCover * 10);
-  const skyKey = `${paletteKey}:${horizonY}:${width}x${height}`;
-  const landKey = `${skyKey}:${snowBucket}:${seed}:${Math.round(foliage.coverage * 10)}`;
-
-  const sky = getSkyLayer(width, height, palette, skyKey, horizonY);
-  surface.pixels.set(sky.pixels);
-
   const sunPoint = known
     ? celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg, horizonY)
     : { x: Math.round(surface.width / 2), y: horizonY };
+  const sunDir = sunPoint.x >= baseX ? 1 : -1;
+
+  const snowBucket = Math.round(conditions.snowCover * 10);
+  const skyKey = `${paletteKey}:${horizonY}:${width}x${height}`;
+  const landKey = `${skyKey}:${snowBucket}:${seed}:${sunDir}:${Math.round(foliage.coverage * 10)}`;
+
+  const sky = getSkyLayer(width, height, palette, skyKey, horizonY);
+  surface.pixels.set(sky.pixels);
 
   if (known) {
     drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY });
@@ -203,10 +204,16 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     seed,
     lat,
     foliage,
+    sunDir,
   });
   blitLandscape(surface, landscape);
 
-  drawGroundWetness(surface, conditions, { palette, timeMs: animMs, horizonY });
+  drawGroundWetness(surface, conditions, {
+    palette,
+    timeMs: animMs,
+    horizonY,
+    windKmh: world.weather?.windKmh ?? 0,
+  });
 
   const treeKey = `${seed}:${species}:${baseX}:${baseY}`;
   if (treeCache.key !== treeKey) {

@@ -25,7 +25,7 @@ function drawBranch(surface, x1, y1, x2, y2, width, color) {
 }
 
 /**
- * Тень на земле: смещение и длина зависят от солнца, плотность — от его высоты.
+ * 2.5D-тень на земле: смещение по горизонтали и глубине от положения и высоты солнца.
  */
 export function drawShadow(surface, tree, { sunAltitudeDeg, sunScreenX, light, groundColor, cloudPct = 0 }) {
   if (sunAltitudeDeg < 2 || light < 0.05) return;
@@ -33,18 +33,23 @@ export function drawShadow(surface, tree, { sunAltitudeDeg, sunScreenX, light, g
   const altitude = Math.max(6, sunAltitudeDeg);
   const length = Math.min(52, 18 / Math.tan((altitude * Math.PI) / 180));
   const direction = sunScreenX < tree.baseX ? 1 : -1;
+  // Чем ближе солнце к центру неба, тем сильнее тень уходит вперёд по 2.5D-плоскости.
+  const central = Math.max(0, 1 - Math.abs(sunScreenX - tree.baseX) / (surface.width * 0.45));
+  const skewY = Math.round(central * 3);
   const cx = tree.baseX + direction * length * 0.55;
+  const cy = Math.min(surface.height - 2, tree.baseY + skewY);
   const rx = 14 + length * 0.55;
-  const ry = 4 + length * 0.06;
+  const ry = 4 + length * 0.06 + central * 2;
   const density = Math.min(0.5, 0.12 + (90 - altitude) / 260) * (1 - (cloudPct / 100) * 0.85);
   if (density < 0.02) return;
 
   const color = mixColor(groundColor, SHADOW, 0.55);
 
-  for (let y = Math.round(tree.baseY - ry - 2); y <= tree.baseY + 2; y += 1) {
-    for (let x = Math.round(cx - rx); x <= cx + rx; x += 1) {
-      const dx = (x - cx) / rx;
-      const dy = (y - tree.baseY) / ry;
+  for (let y = Math.round(cy - ry - 2); y <= Math.min(surface.height - 1, cy + 2); y += 1) {
+    const isoShift = (y - tree.baseY) * direction * 0.6;
+    for (let x = Math.round(cx - rx + isoShift); x <= cx + rx + isoShift; x += 1) {
+      const dx = (x - cx - isoShift) / rx;
+      const dy = (y - cy) / ry;
       if (dx * dx + dy * dy > 1) continue;
       if (bayerThreshold(x, y) < density) surface.pixel(x, y, color);
     }
@@ -52,13 +57,22 @@ export function drawShadow(surface, tree, { sunAltitudeDeg, sunScreenX, light, g
 }
 
 /**
- * Рисует ствол, ветви, фактуру коры, влагу и снег на ветвях.
+ * Рисует ствол, ветви, 2.5D-основание корней, фактуру коры, влагу и снег на ветвях.
  */
 export function drawSkeleton(surface, tree, { sway, light, snowLoad, snowColor, wetness }) {
   const meta = SPECIES_META[tree.species] ?? SPECIES_META.oak;
   const bark = shade(meta.bark[0], Math.max(0.1, light));
   const barkLight = shade(meta.bark[1], Math.max(0.1, light));
   const spotColor = meta.barkSpots ? shade(meta.barkSpots, Math.max(0.12, light)) : null;
+
+  // Контактная тень под основанием ствола и 2.5D-корни по диагоналям 2:1.
+  const rootShadow = shade(hexColor('#1b241d'), Math.max(0.15, light));
+  surface.ellipse(tree.baseX, tree.baseY, 7, 2, rootShadow);
+  for (let step = 0; step < 5; step += 1) {
+    const dy = Math.floor(step / 2);
+    surface.pixel(tree.baseX - 3 - step, tree.baseY - 2 + dy, bark);
+    surface.pixel(tree.baseX + 3 + step, tree.baseY - 2 + dy, bark);
+  }
 
   for (const segment of tree.segments) {
     const x1 = segment.x1 + sway(segment.y1);
