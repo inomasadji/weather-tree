@@ -2,7 +2,7 @@
 // (погоду приложение кэширует само, в localStorage).
 // Версия в имени кэша: при деплое меняйте её, чтобы старый кэш вычищался.
 
-const CACHE = 'weather-tree-v4';
+const CACHE = 'weather-tree-v5';
 const SHELL = ['./', './index.html', './styles.css', './icon.svg', './manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
