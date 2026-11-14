@@ -158,8 +158,9 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   const sunDir = sunPoint.x >= baseX ? 1 : -1;
 
   const snowBucket = Math.round(conditions.snowCover * 10);
+  const rimeBucket = Math.round(conditions.rime * 10);
   const skyKey = `${paletteKey}:${horizonY}:${width}x${height}`;
-  const landKey = `${skyKey}:${snowBucket}:${seed}:${sunDir}:${Math.round(foliage.coverage * 10)}`;
+  const landKey = `${skyKey}:${snowBucket}:${seed}:${sunDir}:${Math.round(foliage.coverage * 10)}:${rimeBucket}`;
 
   const sky = getSkyLayer(width, height, palette, skyKey, horizonY);
   surface.pixels.set(sky.pixels);
@@ -205,6 +206,7 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     lat,
     foliage,
     sunDir,
+    rime: conditions.rime,
   });
   blitLandscape(surface, landscape);
 
@@ -237,6 +239,8 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     snowLoad: conditions.snowLoad,
     snowColor: palette.land.snow,
     wetness: conditions.wetness,
+    rime: conditions.rime,
+    rimeColor: palette.rime,
     sunDir: sunPoint.x >= baseX ? 1 : -1,
   });
 

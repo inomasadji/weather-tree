@@ -169,6 +169,45 @@ export function drawFoliage(surface, tree, {
 }
 
 /**
+ * Иней на кроне: тонкая кристаллическая кромка сверху кластеров и хвойных лап.
+ * Рисуется поверх листвы, но до снежных шапок — иначе снег «съедает» её.
+ */
+export function drawRime(surface, tree, { rime, rimeColor, sway, foliage }) {
+  if (rime < 0.05 || tree.species === 'tropical') return;
+
+  if (tree.species === 'conifer') {
+    for (const cluster of tree.clusters) {
+      const rx = Math.max(3, Math.round(cluster.rx * 0.85));
+      const cx = Math.round(cluster.x + sway(cluster.y));
+      const cy = Math.round(cluster.y - 1);
+      for (let dx = -rx; dx <= rx; dx += 1) {
+        if (Math.abs(dx) > rx * 0.92) continue;
+        if (Surface.noise(cx + dx, cy, 67) > rime * 0.65) continue;
+        surface.pixel(cx + dx, cy, rimeColor);
+      }
+    }
+    return;
+  }
+
+  // Лиственные: кромка по верхней дуге каждого пучка.
+  for (const cluster of tree.clusters) {
+    const scale = 0.48 + foliage.coverage * 0.58;
+    const rx = Math.max(1, Math.round((cluster.rx ?? 8) * scale));
+    const ry = Math.max(1, Math.round((cluster.ry ?? 7) * scale));
+    const cx = Math.round(cluster.x + sway(cluster.y));
+    const cy = Math.round(cluster.y);
+
+    for (let dx = -rx; dx <= rx; dx += 1) {
+      const edge = 1 - (dx / rx) ** 2;
+      if (edge < 0.25) continue;
+      const x = cx + dx;
+      const y = Math.round(cy - ry * Math.sqrt(edge));
+      if (Surface.noise(x, y, 67) < rime * 0.45) surface.pixel(x, y, rimeColor);
+    }
+  }
+}
+
+/**
  * Листопад: частицы листьев и опад на земле.
  */
 export function drawLeafFall(surface, tree, { foliage, windKmh, timeMs, light }) {

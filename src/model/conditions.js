@@ -73,6 +73,42 @@ export function windAmplitude(windKmh, gustKmh = 0) {
 }
 
 /**
+ * Иней и изморозь: мороз плюс влажный воздух. Это не снег — кристаллы
+ * нарастают на ветвях и без осадков, из переохлаждённой влаги.
+ * @param {number} tempC
+ * @param {number} [humidity]
+ * @param {boolean} [snowing]
+ * @returns {number} 0…1
+ */
+export function rimeLoad(tempC, humidity, snowing = false) {
+  // Мороз крепчает от −2 до −7 °C; сухой воздух инея не даёт.
+  const frost = clamp01((-tempC - 2) / 5);
+  const damp = clamp01(((humidity ?? 0) - 78) / 17);
+  if (frost === 0 || damp === 0) return 0;
+
+  const load = clamp01(frost * (0.4 + damp * 0.6));
+  // В снегопад иней есть, но его маскируют снежные шапки.
+  return snowing ? load * 0.3 : load;
+}
+
+/**
+ * Влага после дождя: капли и лужи сохнут примерно за 15 минут сцены,
+ * а не пропадают вместе с последней каплей.
+ * @param {number} intensity интенсивность текущих осадков 0…1
+ * @param {number} [sinceRainMin] минут с последнего дождя
+ * @param {number} [lastIntensity] интенсивность последнего дождя (для досыхания)
+ * @returns {number} 0…1
+ */
+export function dryingWetness(intensity, sinceRainMin = 0, lastIntensity = 0) {
+  const rain = clamp01(intensity);
+  if (rain > 0) return rain;
+
+  const base = clamp01(lastIntensity);
+  const left = clamp01(1 - Math.max(0, sinceRainMin) / 15);
+  return clamp01(base * left);
+}
+
+/**
  * Полный набор физических параметров кадра.
  * @param {object} world WorldState
  * @returns {object}
@@ -116,7 +152,11 @@ export function sceneConditions(world) {
       ? 0.18
       : 0;
 
-  const wetness = precip.type === 'rain' || precip.type === 'drizzle' ? intensity : 0;
+  const wetness = dryingWetness(
+    precip.type === 'rain' || precip.type === 'drizzle' ? intensity : 0,
+    weather.sinceRainMin ?? 0,
+    weather.lastRainIntensity ?? 0,
+  );
   const fog = FOG.has(weather.code ?? 0)
     ? 0.65 + ((weather.code ?? 0) === 48 ? 0.15 : 0)
     : clamp01(((weather.humidity ?? 0) - 92) / 40) * 0.5;
@@ -128,6 +168,8 @@ export function sceneConditions(world) {
     snowLoad,
     wetness,
     fog,
+    /** Иней на ветвях: мороз + влажность, независимо от осадков. */
+    rime: rimeLoad(tempC, weather.humidity, snowing),
     storm: precip.storm,
     windAmp: windAmplitude(weather.windKmh ?? 0, weather.gustKmh ?? 0),
     /** Туман и ливень «съедают» дальний план. */

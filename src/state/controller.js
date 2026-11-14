@@ -12,6 +12,7 @@ import {
 } from './place.js';
 import { buildAmbientWorld, buildWorldState } from './world.js';
 import { demoStation } from './demo.js';
+import { classifyPrecipitation } from '../model/conditions.js';
 import { dict, normalizeLang } from '../model/i18n.js';
 
 export const humanReason = (reason, lang = 'ru') => dict(lang).reasons[reason] ?? String(reason);
@@ -59,6 +60,8 @@ export function createWeatherController(options = {}) {
     inflight: null,
     lastFetchAt: 0,
     lastWorldBuild: 0,
+    lastRainAtMs: 0,
+    lastRainIntensity: 0,
     failures: 0,
     demoMode: false,
   };
@@ -80,13 +83,28 @@ export function createWeatherController(options = {}) {
     }, WEATHER.retryAfterFailureMs);
   }
 
+  /** Сколько минут назад шёл дождь: сцена досыхает после осадков. */
+  function sinceRainMin(at) {
+    if (!state.lastRainAtMs) return Number.POSITIVE_INFINITY;
+    return Math.max(0, (at - state.lastRainAtMs) / 60_000);
+  }
+
   function applyStation(station, source) {
     state.station = station;
     state.lastFetchAt = station.fetchedAt;
     state.provider = station.provider ?? state.provider;
 
     const at = sceneNow();
-    const world = buildWorldState(station, at);
+    const precip = classifyPrecipitation(station.current?.code ?? 0, station.current?.tempC ?? 10);
+    if (precip.type === 'rain' || precip.type === 'drizzle') {
+      state.lastRainAtMs = at;
+      state.lastRainIntensity = precip.intensity;
+    }
+
+    const world = buildWorldState(station, at, {
+      sinceRainMin: sinceRainMin(at),
+      lastRainIntensity: state.lastRainIntensity,
+    });
     state.lastWorldBuild = at;
 
     onWorld(world, source === 'demo' ? 0 : 2500);
@@ -195,7 +213,10 @@ export function createWeatherController(options = {}) {
   function rebuildIfDue(at) {
     if (!state.station || at - state.lastWorldBuild <= 60_000) return null;
     state.lastWorldBuild = at;
-    return buildWorldState(state.station, at);
+    return buildWorldState(state.station, at, {
+      sinceRainMin: sinceRainMin(at),
+      lastRainIntensity: state.lastRainIntensity,
+    });
   }
 
   function dispose() {

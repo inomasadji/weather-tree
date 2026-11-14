@@ -57,9 +57,17 @@ export function drawShadow(surface, tree, { sunAltitudeDeg, sunScreenX, light, g
 }
 
 /**
- * Рисует ствол, ветви, 2.5D-основание корней, фактуру коры, влагу и снег на ветвях.
+ * Рисует ствол, ветви, 2.5D-основание корней, фактуру коры, влагу, иней и снег на ветвях.
  */
-export function drawSkeleton(surface, tree, { sway, light, snowLoad, snowColor, wetness }) {
+export function drawSkeleton(surface, tree, {
+  sway,
+  light,
+  snowLoad,
+  snowColor,
+  wetness,
+  rime = 0,
+  rimeColor = 0,
+}) {
   const meta = SPECIES_META[tree.species] ?? SPECIES_META.oak;
   const bark = shade(meta.bark[0], Math.max(0.1, light));
   const barkLight = shade(meta.bark[1], Math.max(0.1, light));
@@ -104,6 +112,20 @@ export function drawSkeleton(surface, tree, { sway, light, snowLoad, snowColor, 
       const y = Math.round(segment.y2);
       if (Surface.noise(x, y, 13) < wetness * 0.35) {
         surface.pixel(x, y + 1, shade(hexColor('#2b2118'), Math.max(0.1, light)));
+      }
+    }
+  }
+
+  // Иней: кристаллический налёт на тонких ветвях, только по освещённой кромке.
+  if (rime > 0.05) {
+    for (const segment of tree.segments) {
+      if (segment.width > 3.5) continue;
+      const steps = Math.max(Math.abs(segment.x2 - segment.x1), Math.abs(segment.y2 - segment.y1), 1);
+      for (let step = 0; step <= steps; step += 1) {
+        const t = step / steps;
+        const x = Math.round(segment.x1 + (segment.x2 - segment.x1) * t + sway(segment.y1));
+        const y = Math.round(segment.y1 + (segment.y2 - segment.y1) * t);
+        if (Surface.noise(x, y, 23) < rime * 0.5) surface.pixel(x, y - 1, rimeColor);
       }
     }
   }

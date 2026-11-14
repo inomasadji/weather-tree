@@ -198,7 +198,9 @@ export function drawGroundWetness(surface, conditions, { palette, timeMs, horizo
     withAlpha(mixColor(palette.land.ground, hexColor('#0a1220'), 0.45), Math.round(wetness * 150)),
   );
 
-  // Лужи в 2.5D-ракурсе: дальние узкие, ближние шире и выше.
+  // Лужи в 2.5D-ракурсе: дальние узкие, ближние шире и выше. Сохнут вместе со сценой.
+  if (wetness < 0.12) return;
+
   const reflection = mixColor(
     mixColor(palette.sky[1] ?? palette.sky[0], palette.land.ground, 0.45),
     hexColor('#0a1220'),
@@ -211,7 +213,9 @@ export function drawGroundWetness(surface, conditions, { palette, timeMs, horizo
     const depth = 0.14 + hash2(index, 2, 61) * 0.68;
     const cx = Math.round(18 + index * puddleStep + hash2(index, 1, 61) * 26);
     const cy = Math.round(top + 4 + depth * spanY);
-    const rx = Math.round(5 + depth * 9 + hash2(index, 3, 61) * 4);
+    // В первые минуты после дождя лужи полные, дальше подсыхают к краям.
+    const shrink = 0.55 + wetness * 0.45;
+    const rx = Math.max(2, Math.round((5 + depth * 9 + hash2(index, 3, 61) * 4) * shrink));
     const ry = Math.max(1, Math.round(rx * (0.2 + depth * 0.2)));
 
     surface.ellipse(cx, cy, rx, ry, reflection);

@@ -1,7 +1,7 @@
 // Фасад дерева: объединяет скелет, крону, тень и листопад.
 
 import { treeSeed, buildTree, drawShadow, drawSkeleton } from './tree/skeleton.js';
-import { drawFoliage, drawLeafFall } from './tree/foliage.js';
+import { drawFoliage, drawLeafFall, drawRime } from './tree/foliage.js';
 
 export { treeSeed, buildTree, drawShadow, drawLeafFall };
 
@@ -12,7 +12,7 @@ export { treeSeed, buildTree, drawShadow, drawLeafFall };
  * @param {{
  *   foliage: object, timeMs: number, windAmp: number, windDirDeg: number,
  *   light: number, snowLoad: number, snowColor: number, wetness: number,
- *   sunDir?: number
+ *   rime?: number, rimeColor?: number, sunDir?: number
  * }} options
  */
 export function drawTree(surface, tree, {
@@ -24,6 +24,8 @@ export function drawTree(surface, tree, {
   snowLoad,
   snowColor,
   wetness,
+  rime = 0,
+  rimeColor = 0,
   sunDir = 1,
 }) {
   const radians = ((windDirDeg ?? 0) * Math.PI) / 180;
@@ -40,6 +42,7 @@ export function drawTree(surface, tree, {
     );
   };
 
-  drawSkeleton(surface, tree, { sway, light, snowLoad, snowColor, wetness });
+  drawSkeleton(surface, tree, { sway, light, snowLoad, snowColor, wetness, rime, rimeColor });
   drawFoliage(surface, tree, { foliage, seconds, windAmp, light, snowLoad, snowColor, sway, sunDir });
+  drawRime(surface, tree, { rime, rimeColor, sway, foliage });
 }
