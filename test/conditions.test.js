@@ -93,3 +93,23 @@ test('туман определяется по коду и влажности', 
   assert.ok(sceneConditions(worldWith({ code: 0, humidity: 99 })).fog > 0.05);
   assert.equal(sceneConditions(worldWith({ code: 0, humidity: 50 })).fog, 0);
 });
+
+test('snow_depth из API важнее эвристики', () => {
+  const withDepth = sceneConditions(worldWith({ code: 0, tempC: -5, snowDepthM: 0.2 }));
+  const withoutSnow = sceneConditions(worldWith({ code: 0, tempC: -5, snowDepthM: 0 }));
+
+  assert.ok(withDepth.snowCover > 0.6, `покров ${withDepth.snowCover}`);
+  assert.equal(withoutSnow.snowCover, 0, 'при явном нуле снега нет, даже в мороз');
+});
+
+test('свежий снег виден независимо от высоты покрова', () => {
+  const conditions = sceneConditions(
+    worldWith({ code: 75, tempC: -8, snowDepthM: 0.01 }),
+  );
+  assert.ok(conditions.snowCover >= 0.4);
+});
+
+test('на жаре остатки снега тают', () => {
+  const warm = sceneConditions(worldWith({ code: 0, tempC: 16, snowDepthM: 0.3 }));
+  assert.equal(warm.snowCover, 0);
+});

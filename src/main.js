@@ -11,6 +11,7 @@ import { describeScene } from './model/describe.js';
 import { Surface } from './render/surface.js';
 import { renderScene } from './render/scene.js';
 import { createStage } from './ui/stage.js';
+import { createFrameGuard } from './ui/loop.js';
 import { createHud } from './ui/hud.js';
 import { createPlaceDialog } from './ui/controls.js';
 
@@ -80,7 +81,10 @@ function applyStation(station, source) {
   state.lastFetchAt = station.fetchedAt;
   state.provider = station.provider ?? state.provider;
   // Мир строим на времени сцены, иначе в демо-режиме астрономия разъедется с часами.
-  state.world = buildWorldState(station, sceneNow());
+  setWorld(
+    buildWorldState(station, sceneNow()),
+    source === 'demo' ? 0 : 2500,
+  );
 
   hud.setPlace(station.place ?? state.place);
   hud.setStation(station, {
@@ -169,6 +173,9 @@ const placeDialog = createPlaceDialog(
     state.failures = 0;
     clearRetry();
     hud.setPlace(place);
+    // Сначала нейтральный кадр новой точки, потом погода — так переход мягче.
+    setWorld(buildAmbientWorld(place), 600);
+    hud.setMessage('Погода загружается…');
     await loadWeather();
   },
 );
@@ -194,21 +201,67 @@ document.addEventListener('visibilitychange', () => {
 
 // Часы тикают независимо от погоды, сцена перерисовывается каждый кадр:
 // небо и земля — из кэша, облака и мерцание звёзд — живые.
+const scratch = new Surface(LOGICAL.width, LOGICAL.height);
+const frameGuard = createFrameGuard({ maxErrors: 3 });
+let transition = null;
+let stopped = false;
+
+/**
+ * Новый мир показываем не скачком: старый кадр растворяется в новом
+ * по дизерингу Байера (~2.5 с). Смена города — быстрее.
+ * @param {object} world
+ * @param {number} [duration]
+ */
+function setWorld(world, duration = 2500) {
+  if (!world) return;
+  if (!state.world || duration <= 0 || reducedMotion) {
+    state.world = world;
+    transition = null;
+    return;
+  }
+  transition = { from: state.world, to: world, startedAt: performance.now(), duration };
+}
+
 function frame(now) {
+  if (stopped) return;
+
   const at = sceneNow();
   hud.tick(at);
 
   // Раз в минуту пересобираем мир: солнце успевает сместиться, «день/ночь» — тоже.
-  if (state.station && at - lastWorldBuild > 60_000) {
+  // Во время перехода мир не трогаем, иначе переход «сломается».
+  if (state.station && !transition && at - lastWorldBuild > 60_000) {
     state.world = buildWorldState(state.station, at);
     lastWorldBuild = at;
     canvas.setAttribute('aria-label', describeScene(state.world));
   }
 
   if (state.world) {
-    // При reduced-motion кадр остаётся правильным, но замирает.
-    renderScene(surface, state.world, at, reducedMotion ? 0 : now);
-    stage.present(surface);
+    const drawn = frameGuard.attempt(() => {
+      const animMs = reducedMotion ? 0 : now;
+
+      if (transition && !reducedMotion) {
+        const progress = Math.min(1, (now - transition.startedAt) / transition.duration);
+        renderScene(surface, transition.from, at, animMs);
+        renderScene(scratch, transition.to, at, animMs);
+        surface.dissolve(scratch, progress);
+        if (progress >= 1) {
+          state.world = transition.to;
+          transition = null;
+        }
+      } else {
+        renderScene(surface, state.world, at, animMs);
+      }
+
+      stage.present(surface);
+    });
+
+    if (!drawn && frameGuard.exhausted) {
+      stopped = true;
+      stage.paintPlaceholder();
+      hud.setMessage('Сцена остановлена из-за ошибки рендера — обновите страницу.');
+      return;
+    }
   }
 
   requestAnimationFrame(frame);
@@ -257,8 +310,10 @@ async function start() {
 
   const { place } = await resolvePlace();
   state.place = place;
-  state.world = buildAmbientWorld(place);
+  // До прихода погоды — нейтральный кадр, а не уверенное «ясно».
+  setWorld(buildAmbientWorld(place), 0);
   hud.setPlace(place);
+  hud.setMessage('Погода загружается…');
 
   const cached = readCachedStation();
   if (cached && samePlace(cached.place, place)) applyStation(cached, 'cache');

@@ -136,3 +136,33 @@ test('noise детерминирован и лежит в 0…1', () => {
     assert.ok(value >= 0 && value < 1);
   }
 });
+
+test('dissolve: 0 — исходный кадр, 1 — новый', () => {
+  const from = new Surface(8, 8);
+  const to = new Surface(8, 8);
+  from.clear(RED);
+  to.clear(BLUE);
+
+  from.dissolve(to, 0);
+  assert.ok(from.pixels.every((pixel) => pixel === RED));
+
+  from.dissolve(to, 1);
+  assert.ok(from.pixels.every((pixel) => pixel === BLUE));
+});
+
+test('dissolve: половина кадра берётся из нового', () => {
+  const from = new Surface(32, 32);
+  const to = new Surface(32, 32);
+  from.clear(RED);
+  to.clear(BLUE);
+
+  from.dissolve(to, 0.5);
+
+  const red = from.pixels.filter((pixel) => pixel === RED).length;
+  const blue = from.pixels.filter((pixel) => pixel === BLUE).length;
+
+  assert.ok(red > 0 && blue > 0);
+  assert.equal(red + blue, 32 * 32);
+  // Дизеринг Байера даёт примерно 50/50.
+  assert.ok(Math.abs(red - blue) < 32 * 32 * 0.1, `red=${red}, blue=${blue}`);
+});

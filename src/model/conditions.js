@@ -82,12 +82,32 @@ export function sceneConditions(world) {
   const precip = classifyPrecipitation(weather.code ?? 0, weather.tempC ?? 10);
   const intensity = precip.intensity;
   const snowing = precip.type === 'snow' || precip.type === 'grains';
+  const tempC = weather.tempC ?? 10;
 
-  // Накопление снега — эвристика: API не отдаёт высоту покрова.
-  let snowCover = 0;
-  if (snowing) snowCover = 0.45 + intensity * 0.55;
-  else if ((weather.tempC ?? 10) < -2) snowCover = 0.5;
-  else if ((weather.tempC ?? 10) < 0) snowCover = 0.2;
+  // Высота покрова: если провайдер отдаёт snow_depth (метры) — верим ему.
+  // 30 см считаем полным покровом. Иначе — прежняя эвристика (wttr.in).
+  const depth =
+    typeof weather.snowDepthM === 'number' && Number.isFinite(weather.snowDepthM)
+      ? Math.max(0, weather.snowDepthM)
+      : null;
+
+  let snowCover;
+  if (depth !== null) {
+    snowCover = clamp01(depth / 0.3);
+    // Свежий снег виден сразу, даже если модель ещё не обновила высоту.
+    if (snowing) snowCover = Math.max(snowCover, 0.4 + intensity * 0.45);
+    // На жаре остатки не держатся.
+    if (tempC > 5) snowCover *= 0.5;
+    if (tempC > 12) snowCover = 0;
+  } else if (snowing) {
+    snowCover = 0.45 + intensity * 0.55;
+  } else if (tempC < -2) {
+    snowCover = 0.5;
+  } else if (tempC < 0) {
+    snowCover = 0.2;
+  } else {
+    snowCover = 0;
+  }
 
   // На ветвях снег держится слабее, чем на земле.
   const snowLoad = snowing

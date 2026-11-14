@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildWorldState } from '../src/state/world.js';
+import { buildWorldState, buildAmbientWorld } from '../src/state/world.js';
 
 const STATION = {
   place: { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173 },
@@ -77,4 +77,20 @@ test('buildWorldState: южное полушарие определяется п
 test('buildWorldState возвращает null без данных', () => {
   assert.equal(buildWorldState(null), null);
   assert.equal(buildWorldState({}), null);
+});
+
+test('buildWorldState: погода считается известной', () => {
+  const world = buildWorldState(STATION, Date.UTC(2026, 0, 14, 16, 15));
+  assert.equal(world.weather.known, true);
+});
+
+test('buildAmbientWorld: погода ещё неизвестна', () => {
+  const world = buildAmbientWorld({ name: 'Москва', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' });
+
+  assert.ok(world);
+  assert.equal(world.weather.known, false);
+  assert.equal(world.weather.cloudPct, 0);
+  // Астрономия при этом уже верная — солнце/сезон считаются без погоды.
+  assert.ok(Number.isFinite(world.derived.sun.altitudeDeg));
+  assert.ok(world.derived.season >= 0 && world.derived.season < 1);
 });

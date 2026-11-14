@@ -248,9 +248,16 @@ export function shade(color, light) {
 
 /**
  * Полная палитра кадра.
- * @param {{altitudeDeg: number, cloudPct?: number, seasonPhase?: number, storm?: boolean}} input
+ * @param {{altitudeDeg: number, cloudPct?: number, seasonPhase?: number,
+ *          storm?: boolean, neutral?: boolean}} input
  */
-export function scenePalette({ altitudeDeg, cloudPct = 0, seasonPhase = 0.5, storm = false }) {
+export function scenePalette({
+  altitudeDeg,
+  cloudPct = 0,
+  seasonPhase = 0.5,
+  storm = false,
+  neutral = false,
+}) {
   const base = altitudePalette(altitudeDeg);
   const tint = seasonTint(seasonPhase);
   // Гамма: на низком солнце земля темнеет быстрее, чем небо светлеет.
@@ -263,21 +270,25 @@ export function scenePalette({ altitudeDeg, cloudPct = 0, seasonPhase = 0.5, sto
   const darken = (color) => (storm ? mixColor(color, STORM_SKY, 0.68) : color);
   if (storm) light *= 0.38;
 
+  // Нейтральный кадр (погода ещё не пришла): цвет уходит в серый, солнца нет.
+  const grey = shade(hexColor('#8d939c'), light);
+  const desaturate = (color) => (neutral ? mixColor(color, grey, 0.55) : color);
+
   return {
     key: base.key,
     light,
-    sky: base.sky.map((color) => darken(applyTint(color, tint))),
+    sky: base.sky.map((color) => darken(desaturate(applyTint(color, tint)))),
     sunCore: base.sunCore,
     sunEdge: base.sunEdge,
     sunHalo: base.sunHalo,
     moonLit: base.moonLit,
     moonShadow: base.moonShadow,
-    cloudLight: darken(applyTint(base.cloudLight, tint)),
-    cloudDark: darken(applyTint(base.cloudDark, tint)),
-    cloudRim: darken(applyTint(base.cloudRim, tint)),
+    cloudLight: darken(desaturate(applyTint(base.cloudLight, tint))),
+    cloudDark: darken(desaturate(applyTint(base.cloudDark, tint))),
+    cloudRim: darken(desaturate(applyTint(base.cloudRim, tint))),
     star: base.star,
     /** Насколько видны звёзды: темнота × прозрачность неба. */
-    starOpacity: clamp01((-altitudeDeg - 4) / 10) * (1 - clouds * 0.85),
+    starOpacity: neutral ? 0 : clamp01((-altitudeDeg - 4) / 10) * (1 - clouds * 0.85),
     haze: applyTint(base.haze, tint),
     land: {
       far: shade(hexColor(land.far), light),

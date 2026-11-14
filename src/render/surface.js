@@ -225,6 +225,29 @@ export class Surface {
   }
 
   /**
+   * Дизеринг-переход между кадрами: доля t пикселей берётся из `other`.
+   * t=0 — остаётся текущий кадр, t=1 — полностью кадр `other`.
+   * Так смена погоды выглядит как пиксельный «проявитель», а не как скачок.
+   * @param {Surface} other
+   * @param {number} t 0…1
+   */
+  dissolve(other, t) {
+    const ratio = Math.min(1, Math.max(0, t));
+    if (ratio <= 0) return;
+    if (ratio >= 1) {
+      this.pixels.set(other.pixels);
+      return;
+    }
+
+    for (let y = 0; y < this.height; y += 1) {
+      const line = y * this.width;
+      for (let x = 0; x < this.width; x += 1) {
+        if (bayerThreshold(x, y) < ratio) this.pixels[line + x] = other.pixels[line + x];
+      }
+    }
+  }
+
+  /**
    * Детерминированный «шум» для травы, снега и кроны: одинаковый на одинаковых входах.
    * @param {number} x @param {number} y
    * @param {number} seed

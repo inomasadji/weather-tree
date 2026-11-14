@@ -89,3 +89,26 @@ test('ночью на ясном небе есть звёзды', () => {
 test('горизонт внутри буфера', () => {
   assert.ok(HORIZON > 0 && HORIZON < LOGICAL.height);
 });
+
+test('нейтральный кадр не показывает солнце', () => {
+  const station = demoStation(MOSCOW, {
+    atMs: SUMMER_NOON,
+    weather: { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 },
+  });
+  const world = buildWorldState(station, SUMMER_NOON);
+  world.weather.known = false;
+
+  const surface = new Surface(LOGICAL.width, LOGICAL.height);
+  renderScene(surface, world, SUMMER_NOON, SUMMER_NOON);
+
+  const palette = scenePalette({
+    altitudeDeg: world.derived.sun.altitudeDeg,
+    cloudPct: 55,
+    seasonPhase: world.derived.season,
+    neutral: true,
+  });
+
+  let sunPixels = 0;
+  for (const pixel of surface.pixels) if (pixel === palette.sunCore) sunPixels += 1;
+  assert.equal(sunPixels, 0, 'в нейтральном кадре солнца быть не должно');
+});

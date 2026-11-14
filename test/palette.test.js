@@ -71,3 +71,18 @@ test('skyToneAt интерполирует стопы', () => {
   const middle = unpack(skyToneAt(sky, 0.5));
   assert.ok(middle.r > 120 && middle.r < 136, `середина ${middle.r}`);
 });
+
+test('нейтральная палитра: без звёзд и менее насыщенная', () => {
+  const normal = scenePalette({ altitudeDeg: 20 });
+  const neutral = scenePalette({ altitudeDeg: 20, neutral: true });
+
+  assert.equal(neutral.starOpacity, 0);
+  assert.notDeepEqual(neutral.sky, normal.sky);
+
+  const saturation = (color) => {
+    const { r, g, b } = unpack(color);
+    return Math.max(r, g, b) - Math.min(r, g, b);
+  };
+
+  assert.ok(saturation(neutral.sky[0]) < saturation(normal.sky[0]));
+});

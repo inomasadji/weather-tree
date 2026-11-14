@@ -11,6 +11,9 @@ const CURRENT_FIELDS = [
   'weather_code',
   'cloud_cover',
   'precipitation',
+  'rain',
+  'snowfall',
+  'snow_depth',
   'surface_pressure',
   'wind_speed_10m',
   'wind_direction_10m',
@@ -68,6 +71,10 @@ export function normalizeStation(json, place, fetchedAt = Date.now()) {
       code: num(current.weather_code, -1),
       cloudPct: num(current.cloud_cover),
       precipMm: num(current.precipitation),
+      /** Высота снега, метры. undefined, если провайдер не отдаёт. */
+      snowDepthM: Number.isFinite(current.snow_depth) ? current.snow_depth : undefined,
+      /** Свежий снег за интервал, см. */
+      snowfallCm: Number.isFinite(current.snowfall) ? current.snowfall : undefined,
       pressureHpa: Math.round(num(current.surface_pressure, 1013)),
       windKmh: num(current.wind_speed_10m),
       windDirDeg: num(current.wind_direction_10m),

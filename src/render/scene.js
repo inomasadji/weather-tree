@@ -37,17 +37,18 @@ let treeCache = { seed: null, tree: null };
  * @param {number} season
  * @returns {{palette: object, key: string}}
  */
-function paletteFor(altitudeDeg, cloudPct, season, storm) {
+function paletteFor(altitudeDeg, cloudPct, season, storm, neutral) {
   const key = [
     Math.round(altitudeDeg * 2),
     Math.round(cloudPct / 5),
     Math.round(season * 40),
     storm ? 's' : 'c',
+    neutral ? 'n' : 'd',
   ].join('|');
 
   let palette = paletteCache.get(key);
   if (!palette) {
-    palette = scenePalette({ altitudeDeg, cloudPct, seasonPhase: season, storm });
+    palette = scenePalette({ altitudeDeg, cloudPct, seasonPhase: season, storm, neutral });
     paletteCache.set(key, palette);
     if (paletteCache.size > 24) paletteCache.delete(paletteCache.keys().next().value);
   }
@@ -168,13 +169,16 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   const phase = moonPhase(atMs);
 
   const season = seasonPhase(dayOfYear(stationDate(offset, atMs)), hemisphere);
-  const cloudPct = world.weather?.cloudPct ?? 0;
+  const known = world.weather?.known !== false;
+  // Пока погоды нет — нейтральная облачность вместо уверенного «ясно».
+  const cloudPct = known ? (world.weather?.cloudPct ?? 0) : 55;
   const conditions = sceneConditions(world);
   const { palette, key: paletteKey } = paletteFor(
     sun.altitudeDeg,
     cloudPct,
     season,
     conditions.storm,
+    !known,
   );
 
   const snowBucket = Math.round(conditions.snowCover * 10);
@@ -184,20 +188,23 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   const sky = getSkyLayer(width, height, palette, key);
   surface.pixels.set(sky.pixels);
 
-  drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity });
-  drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs });
+  // Светила и звёзды — только когда погода известна.
+  if (known) {
+    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity });
+    drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs });
 
-  const sunPoint = celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg);
-  drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
+    const sunPoint = celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg);
+    drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
 
-  const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg);
-  drawMoon(surface, {
-    ...moonPoint,
-    palette,
-    phase,
-    altitudeDeg: moon.altitudeDeg,
-    sunAltitudeDeg: sun.altitudeDeg,
-  });
+    const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg);
+    drawMoon(surface, {
+      ...moonPoint,
+      palette,
+      phase,
+      altitudeDeg: moon.altitudeDeg,
+      sunAltitudeDeg: sun.altitudeDeg,
+    });
+  }
 
   if (cloudLayersWidth !== width) {
     cloudLayers = createCloudLayers(width);

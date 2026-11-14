@@ -46,11 +46,15 @@ export function buildWorldState(station, atMs = Date.now()) {
     weather: {
       code: current.code,
       label: describeWeather(current.code, current.tempC),
+      /** false — данные ещё не пришли (ambient-мир), сцена рисует нейтральный кадр. */
+      known: true,
       tempC: current.tempC,
       feelsC: current.feelsC,
       humidity: current.humidity,
       cloudPct: current.cloudPct,
       precipMm: current.precipMm,
+      snowDepthM: current.snowDepthM,
+      snowfallCm: current.snowfallCm,
       pressureHpa: current.pressureHpa,
       windKmh: current.windKmh,
       gustKmh: current.gustKmh,
@@ -87,7 +91,7 @@ export function buildWorldState(station, atMs = Date.now()) {
 export function buildAmbientWorld(place, atMs = Date.now()) {
   const offset = offsetSecondsFor(place.timeZone, atMs);
 
-  return buildWorldState(
+  const world = buildWorldState(
     {
       place: { name: place.name, country: place.country ?? '', lat: place.lat, lon: place.lon },
       timezone: place.timeZone ?? 'UTC',
@@ -111,4 +115,8 @@ export function buildAmbientWorld(place, atMs = Date.now()) {
     },
     atMs,
   );
+
+  // Погоды ещё нет: сцена не должна утверждать «ясно».
+  world.weather.known = false;
+  return world;
 }

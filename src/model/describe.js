@@ -11,6 +11,7 @@ import { describeWeather } from './weather.js';
  */
 export function describeScene(world) {
   if (!world || !world.weather) return 'Погодная сцена с деревом';
+  if (world.weather.known === false) return 'Пиксельная сцена: погода загружается';
 
   const conditions = sceneConditions(world);
   const season = world.derived?.season ?? 0.5;
