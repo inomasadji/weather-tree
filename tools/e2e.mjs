@@ -315,8 +315,58 @@ async function run() {
     assert.ok(mobile.hr.right <= mobile.innerW && mobile.br.right <= mobile.innerW);
     assert.match(mobile.temp, /−11°/);
 
+    // 3. Бюджет кадра под эмуляцией слабого CPU: медленное устройство не должно
+    //    ронять 60 fps. Порог мягче, чем в node-бюджете (там медиана < 4 мс), и
+    //    считается по медиане: p95 на 40 кадрах скачет от JIT и GC, а на общем
+    //    CI-раннере это флак, а не сигнал. Медиана < 8 мс — половина кадра 60 fps
+    //    под троттлингом ×4; p95 печатаем для диагностики.
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 720,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${baseUrl}/?${summerQuery}` });
+    await waitFor(cdp, "document.getElementById('clock-time')?.textContent === '12:00'");
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+
+    const bench = await evalJs(cdp, `(async () => {
+      const [surfaceModule, sceneModule, demoModule, worldModule] = await Promise.all([
+        import('/src/render/surface.js'),
+        import('/src/render/scene.js'),
+        import('/src/state/demo.js'),
+        import('/src/state/world.js'),
+      ]);
+      const atMs = Date.UTC(2026, 6, 9, 9, 0);
+      const station = demoModule.demoStation(
+        { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' },
+        { atMs, weather: { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 } },
+      );
+      const world = worldModule.buildWorldState(station, atMs);
+      const surface = new surfaceModule.Surface(320, 180);
+      const times = [];
+      for (let index = 0; index < 40; index += 1) {
+        const started = performance.now();
+        sceneModule.renderScene(surface, world, atMs, atMs + index * 16);
+        times.push(performance.now() - started);
+      }
+      times.sort((a, b) => a - b);
+      return { median: times[20], p95: times[38], max: times[39] };
+    })()`);
+
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+
+    assert.ok(
+      bench.median < 8,
+      `кадр под троттлингом ×4: медиана ${bench.median.toFixed(2)} мс ≥ 8 мс (p95 ${bench.p95.toFixed(2)})`,
+    );
+
     assert.deepEqual(errors, [], `ошибки в браузере: ${errors.join('; ')}`);
-    console.log(`e2e ok (${browserPath}): desktop 1440x900 (${desktop.cw}x${desktop.ch}), mobile 390x844 (${mobile.cw}x${mobile.ch})`);
+    console.log(
+      `e2e ok (${browserPath}): desktop 1440x900 (${desktop.cw}x${desktop.ch}), ` +
+        `mobile 390x844 (${mobile.cw}x${mobile.ch}), ` +
+        `throttle x4 320x180: медиана ${bench.median.toFixed(2)} мс, p95 ${bench.p95.toFixed(2)} мс`,
+    );
   } finally {
     if (cdp) {
       try {
