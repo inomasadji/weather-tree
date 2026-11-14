@@ -72,6 +72,24 @@ test('skyToneAt интерполирует стопы', () => {
   assert.ok(middle.r > 120 && middle.r < 136, `середина ${middle.r}`);
 });
 
+test('дымка у горизонта теплеет и толще к закату', () => {
+  // Тепло — это разница красного и синего, а не абсолютная яркость:
+  // в полдень дымка светлая, но холодная.
+  const warmth = (palette) => {
+    const { r, b } = unpack(palette.haze);
+    return r - b;
+  };
+  const noon = scenePalette({ altitudeDeg: 35 });
+  const dusk = scenePalette({ altitudeDeg: 2 });
+
+  assert.ok(warmth(dusk) > warmth(noon) + 20, `тепло: закат ${warmth(dusk)}, полдень ${warmth(noon)}`);
+  assert.ok(dusk.hazeSpan > noon.hazeSpan, `толщина: ${dusk.hazeSpan} vs ${noon.hazeSpan}`);
+
+  // Ночью дымка не должна светиться тёплым: там всё уходит в сумрак.
+  const night = scenePalette({ altitudeDeg: -25 });
+  assert.ok(night.hazeSpan <= 3, `ночная дымка ${night.hazeSpan}`);
+});
+
 test('нейтральная палитра: без звёзд и менее насыщенная', () => {
   const normal = scenePalette({ altitudeDeg: 20 });
   const neutral = scenePalette({ altitudeDeg: 20, neutral: true });

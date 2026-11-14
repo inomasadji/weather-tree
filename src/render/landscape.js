@@ -167,11 +167,13 @@ export function paintLandscape(surface, {
   };
 }
 
-/** Дымка у горизонта поверх неба и облаков. */
+/** Дымка у горизонта поверх неба и облаков: толще и теплее на низком солнце. */
 export function drawHorizonHaze(surface, palette, horizonY) {
   const haze = palette.haze;
-  for (let row = horizonY - 5; row < horizonY; row += 1) {
-    const density = ((row - (horizonY - 6)) / 6) * 0.5;
+  const span = Math.max(2, Math.round(palette.hazeSpan ?? 5));
+
+  for (let row = horizonY - span; row < horizonY; row += 1) {
+    const density = ((row - (horizonY - span - 1)) / (span + 1)) * 0.5;
     for (let col = 0; col < surface.width; col += 1) {
       if (bayerThreshold(col, row) < density) surface.pixel(col, row, haze);
     }
