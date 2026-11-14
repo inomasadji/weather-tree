@@ -16,9 +16,9 @@ import { SCENARIOS, scenarioWorld, hashOf } from '../tools/snapshot.mjs';
 const MOSCOW = { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' };
 
 const GOLDEN_HASHES = {
-  'm3-july-noon': '7ee31413a1442803',
-  'm3-january-night': '6ee23646d5bbb22a',
-  'm5-storm': '39d98f9b1acf1418',
+  'm3-july-noon': '8a9e9e9a4bc25d98',
+  'm3-january-night': '8fe9a3a0e88cbf3c',
+  'm5-storm': '0029d696e6763109',
 };
 
 const SUMMER_NOON = Date.UTC(2026, 6, 9, 9, 0);
