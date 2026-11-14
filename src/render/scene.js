@@ -2,7 +2,7 @@
 // Тяжёлые статичные слои (небо, холмы, дальний лес, кусты, земля) кэшируются
 // и перерисовываются только при смене палитры, снега, сезона или размера буфера.
 
-import { HORIZON_Y, LOGICAL } from '../config.js';
+import { HORIZON_Y } from '../config.js';
 import { drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
@@ -45,10 +45,8 @@ export function clearSceneCache() {
  * @param {object} world WorldState
  * @param {number} [atMs] реальное время кадра (астрономия, палитра)
  * @param {number} [animMs] часы анимации (облака, мерцание)
- * @param {{x: number, y: number}} [view] сдвиг камеры −1…1: дальний план уходит
- *   в одну сторону, ближняя трава — в другую (параллакс)
  */
-export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, view = { x: 0, y: 0 }) {
+export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   if (!world || !world.place) return;
 
   const { width, height } = surface;
@@ -56,13 +54,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, vi
   const { lat, lon } = world.place;
   const hemisphere = lat >= 0 ? 'N' : 'S';
   const offset = world.now?.utcOffsetSeconds ?? 0;
-
-  // Параллакс: небо уходит против движения камеры, ближняя трава — по движению.
-  const zoom = width / LOGICAL.width;
-  const farX = -Math.round((view?.x ?? 0) * 2.4 * zoom);
-  const farY = -Math.round((view?.y ?? 0) * 1.2 * zoom);
-  const nearX = Math.round((view?.x ?? 0) * 1.6 * zoom);
-  const nearY = Math.round((view?.y ?? 0) * 0.8 * zoom);
 
   const sun = sunPosition(atMs, lat, lon);
   const moon = moonPosition(atMs, lat, lon);
@@ -101,28 +92,13 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, vi
   surface.pixels.set(sky.pixels);
 
   if (known) {
-    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY, shiftX: farX, shiftY: farY });
-    drawStars(surface, {
-      palette,
-      starOpacity: palette.starOpacity,
-      timeMs: animMs,
-      horizonY,
-      shiftX: farX,
-      shiftY: farY,
-    });
-    drawSun(surface, {
-      ...sunPoint,
-      x: sunPoint.x + farX,
-      y: sunPoint.y + farY,
-      palette,
-      altitudeDeg: sun.altitudeDeg,
-    });
+    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY });
+    drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs, horizonY });
+    drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
 
     const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg, horizonY);
     drawMoon(surface, {
       ...moonPoint,
-      x: moonPoint.x + farX,
-      y: moonPoint.y + farY,
       palette,
       phase,
       altitudeDeg: moon.altitudeDeg,
@@ -143,8 +119,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, vi
     sunAltitudeDeg: sun.altitudeDeg,
     fog: conditions.fog,
     horizonY,
-    shiftX: farX,
-    shiftY: farY,
   });
 
   drawHorizonHaze(surface, palette, horizonY);
@@ -160,7 +134,7 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, vi
     season > 0.14 &&
     season < 0.86
   ) {
-    drawBirds(surface, { timeMs: animMs, palette, shiftX: farX, shiftY: farY });
+    drawBirds(surface, { timeMs: animMs, palette });
   }
 
   const landscape = getLandscapeLayer(width, height, landKey, {
@@ -225,8 +199,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, vi
     seed,
     baseX,
     snowCover: conditions.snowCover,
-    viewX: nearX,
-    viewY: nearY,
   });
 
   // Светлячки: тёплый сезон, тёмная тихая ночь без осадков и тумана.
