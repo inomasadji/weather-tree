@@ -1,26 +1,27 @@
-// Композитор сцены: небо → звёзды → светила → облака → дымка → земля.
-// Тяжёлые статичные слои (градиент неба, земля с холмами) кэшируются по ключу
-// палитры: в кадре остаются только копии буферов и анимируемые слои.
+// Композитор сцены: небо → звёзды → светила → облака → дымка → ландшафт → дерево → осадки.
+// Тяжёлые статичные слои (небо, холмы, дальний лес, кусты, земля) кэшируются
+// и перерисовываются только при смене палитры, снега, сезона или размера буфера.
 
 import { HORIZON_Y, LOGICAL } from '../config.js';
 import { Surface } from './surface.js';
 import { drawSky, drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
-import { drawHills, paintGround } from './landscape.js';
+import { drawHorizonHaze, paintLandscape } from './landscape.js';
 import { scenePalette } from '../model/palette.js';
 import { sunPosition, moonPosition, moonPhase } from '../model/sun.js';
 import { seasonPhase } from '../model/season.js';
 import { foliageState } from '../model/phenology.js';
 import { sceneConditions } from '../model/conditions.js';
-import { buildTree, drawLeafFall, drawShadow, drawTree, treeSeed } from './tree.js';
+import { speciesFor, treeSeed } from '../model/species.js';
+import { buildTree, drawLeafFall, drawShadow, drawTree } from './tree.js';
 import { drawGroundWetness, drawWeather } from './weatherFx.js';
 import { dayOfYear, stationDate } from '../model/clock.js';
 
 export const HORIZON = HORIZON_Y;
 
 const skyCache = new Map();
-const groundCache = new Map();
+const landscapeCache = new Map();
 const paletteCache = new Map();
 
 let cloudLayers = null;
@@ -30,7 +31,7 @@ let treeCache = { key: null, tree: null };
 /** Освобождает кэши слоёв и геометрии при уходе со страницы. */
 export function clearSceneCache() {
   skyCache.clear();
-  groundCache.clear();
+  landscapeCache.clear();
   paletteCache.clear();
   cloudLayers = null;
   cloudLayersWidth = 0;
@@ -53,13 +54,6 @@ function sceneLayout(width, height) {
   return { horizonY, baseX, baseY };
 }
 
-/**
- * Палитра считается не каждый кадр: ключ округляет высоту солнца и сезон.
- * @param {number} altitudeDeg
- * @param {number} cloudPct
- * @param {number} season
- * @returns {{palette: object, key: string}}
- */
 function paletteFor(altitudeDeg, cloudPct, season, storm, neutral) {
   const key = [
     Math.round(altitudeDeg * 2),
@@ -79,14 +73,6 @@ function paletteFor(altitudeDeg, cloudPct, season, storm, neutral) {
   return { palette, key };
 }
 
-/**
- * @param {number} width
- * @param {number} height
- * @param {object} palette
- * @param {string} key
- * @param {number} horizonY
- * @returns {Surface}
- */
 function getSkyLayer(width, height, palette, key, horizonY) {
   const cached = skyCache.get(key);
   if (cached) return cached;
@@ -98,30 +84,38 @@ function getSkyLayer(width, height, palette, key, horizonY) {
   return layer;
 }
 
-/**
- * @param {number} width
- * @param {number} height
- * @param {object} palette
- * @param {string} key
- * @param {number} snowCover
- * @param {number} horizonY
- * @returns {Surface}
- */
-function getGroundLayer(width, height, palette, key, snowCover, horizonY) {
-  const cached = groundCache.get(key);
+function getLandscapeLayer(width, height, key, options) {
+  const cached = landscapeCache.get(key);
   if (cached) return cached;
 
   const layer = new Surface(width, height);
-  paintGround(layer, palette, snowCover, horizonY);
-  groundCache.set(key, layer);
-  if (groundCache.size > 8) groundCache.delete(groundCache.keys().next().value);
-  return layer;
+  const bounds = paintLandscape(layer, options);
+  const entry = { layer, ...bounds };
+  landscapeCache.set(key, entry);
+  if (landscapeCache.size > 8) landscapeCache.delete(landscapeCache.keys().next().value);
+  return entry;
+}
+
+/** Переносит кэшированный ландшафт на сцену: холмы/лес с маской, грунт — одним блоком. */
+function blitLandscape(surface, { layer, minY, maxGroundY }) {
+  const { width } = surface;
+  const start = minY * width;
+  const maskEnd = maxGroundY * width;
+
+  for (let i = start; i < maskEnd; i += 1) {
+    const pixel = layer.pixels[i];
+    if (pixel !== 0) surface.pixels[i] = pixel;
+  }
+
+  if (maxGroundY < surface.height) {
+    surface.pixels.set(layer.pixels.subarray(maskEnd), maskEnd);
+  }
 }
 
 /**
  * Рисует кадр целиком в переданный буфер.
  * @param {Surface} surface
- * @param {object} world WorldState (нужны place, weather; now — для HUD)
+ * @param {object} world WorldState
  * @param {number} [atMs] реальное время кадра (астрономия, палитра)
  * @param {number} [animMs] часы анимации (облака, мерцание)
  */
@@ -140,7 +134,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
 
   const season = seasonPhase(dayOfYear(stationDate(offset, atMs)), hemisphere);
   const known = world.weather?.known !== false;
-  // Пока погоды нет — нейтральная облачность вместо уверенного «ясно».
   const cloudPct = known ? (world.weather?.cloudPct ?? 0) : 55;
   const conditions = sceneConditions(world);
   const { palette, key: paletteKey } = paletteFor(
@@ -151,14 +144,21 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     !known,
   );
 
-  const snowBucket = Math.round(conditions.snowCover * 10);
-  const key = `${paletteKey}:${snowBucket}:${width}x${height}`;
+  const seed = treeSeed(lat, lon);
+  const species = speciesFor(lat, seed);
+  const foliage = foliageState(season, {
+    tempC: world.weather?.tempC ?? 10,
+    windKmh: world.weather?.windKmh ?? 0,
+    species,
+  });
 
-  // Небо (кэш) — копия всего верхнего буфера.
-  const sky = getSkyLayer(width, height, palette, key, horizonY);
+  const snowBucket = Math.round(conditions.snowCover * 10);
+  const skyKey = `${paletteKey}:${horizonY}:${width}x${height}`;
+  const landKey = `${skyKey}:${snowBucket}:${seed}:${Math.round(foliage.coverage * 10)}`;
+
+  const sky = getSkyLayer(width, height, palette, skyKey, horizonY);
   surface.pixels.set(sky.pixels);
 
-  // Светила и звёзды — только когда погода известна.
   const sunPoint = known
     ? celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg, horizonY)
     : { x: Math.round(surface.width / 2), y: horizonY };
@@ -166,7 +166,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   if (known) {
     drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY });
     drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs, horizonY });
-
     drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
 
     const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg, horizonY);
@@ -194,21 +193,24 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     horizonY,
   });
 
-  // Дымка у горизонта и холмы поверх облаков: они ближе.
-  drawHills(surface, palette, horizonY);
+  drawHorizonHaze(surface, palette, horizonY);
 
-  // Земля — из кэша, копируется одним куском.
-  const ground = getGroundLayer(width, height, palette, key, conditions.snowCover, horizonY);
-  surface.pixels.set(ground.pixels.subarray(horizonY * width), horizonY * width);
+  const landscape = getLandscapeLayer(width, height, landKey, {
+    palette,
+    snowCover: conditions.snowCover,
+    horizonY,
+    baseX,
+    seed,
+    lat,
+    foliage,
+  });
+  blitLandscape(surface, landscape);
 
-  // Мокрый грунт и лужи — до дерева, чтобы ствол оставался поверх.
   drawGroundWetness(surface, conditions, { palette, timeMs: animMs, horizonY });
 
-  // Дерево: сначала тень, потом ствол и крона.
-  const seed = treeSeed(lat, lon);
-  const treeKey = `${seed}:${baseX}:${baseY}`;
+  const treeKey = `${seed}:${species}:${baseX}:${baseY}`;
   if (treeCache.key !== treeKey) {
-    treeCache = { key: treeKey, tree: buildTree(seed, { baseX, baseY }) };
+    treeCache = { key: treeKey, tree: buildTree(seed, { baseX, baseY, species }) };
   }
 
   drawShadow(surface, treeCache.tree, {
@@ -217,11 +219,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     light: palette.light,
     groundColor: conditions.snowCover > 0.5 ? palette.land.snow : palette.land.ground,
     cloudPct,
-  });
-
-  const foliage = foliageState(season, {
-    tempC: world.weather?.tempC ?? 10,
-    windKmh: world.weather?.windKmh ?? 0,
   });
 
   drawTree(surface, treeCache.tree, {
@@ -233,6 +230,7 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     snowLoad: conditions.snowLoad,
     snowColor: palette.land.snow,
     wetness: conditions.wetness,
+    sunDir: sunPoint.x >= baseX ? 1 : -1,
   });
 
   drawLeafFall(surface, treeCache.tree, {
