@@ -28,6 +28,7 @@ function findBrowser() {
         '/usr/bin/google-chrome',
         '/usr/bin/chromium',
         '/usr/bin/chromium-browser',
+        '/usr/bin/microsoft-edge',
         '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
       ];
 
@@ -36,7 +37,7 @@ function findBrowser() {
   }
 
   if (process.platform !== 'win32') {
-    for (const cmd of ['google-chrome', 'chromium', 'chromium-browser']) {
+    for (const cmd of ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge']) {
       try {
         const resolved = execFileSync('which', [cmd], { encoding: 'utf8' }).trim();
         if (resolved) return resolved;
@@ -99,6 +100,7 @@ function launchBrowser(browserPath, userDataDir) {
     const child = spawn(browserPath, [
       '--headless=new',
       '--disable-gpu',
+      '--disable-dev-shm-usage',
       '--no-first-run',
       '--no-default-browser-check',
       '--no-sandbox',
@@ -194,9 +196,15 @@ async function run() {
       deviceScaleFactor: 1,
       mobile: false,
     });
-    await cdp.send('Page.navigate', {
-      url: `${baseUrl}/?demo=1&at=2026-07-09T12:00&code=0&temp=24&cloud=5&wind=4`,
+    const summerQuery = new URLSearchParams({
+      demo: '1',
+      at: '2026-07-09T12:00:00+03:00',
+      code: '0',
+      temp: '24',
+      cloud: '5',
+      wind: '4',
     });
+    await cdp.send('Page.navigate', { url: `${baseUrl}/?${summerQuery}` });
 
     await waitFor(
       cdp,
@@ -255,9 +263,16 @@ async function run() {
       deviceScaleFactor: 2,
       mobile: true,
     });
-    await cdp.send('Page.navigate', {
-      url: `${baseUrl}/?demo=1&at=2026-01-14T19:15&code=75&temp=-11&cloud=95&wind=28&gust=45`,
+    const winterQuery = new URLSearchParams({
+      demo: '1',
+      at: '2026-01-14T19:15:00+03:00',
+      code: '75',
+      temp: '-11',
+      cloud: '95',
+      wind: '28',
+      gust: '45',
     });
+    await cdp.send('Page.navigate', { url: `${baseUrl}/?${winterQuery}` });
 
     await waitFor(
       cdp,
