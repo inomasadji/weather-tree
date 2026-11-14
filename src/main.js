@@ -11,6 +11,7 @@ import { createStage } from './ui/stage.js';
 import { createFrameGuard, createFramePacer } from './ui/loop.js';
 import { createHud } from './ui/hud.js';
 import { createPlaceDialog } from './ui/controls.js';
+import { createChrome } from './ui/chrome.js';
 
 /**
  * @param {URLSearchParams} params
@@ -96,8 +97,17 @@ const controller = createWeatherController({
   onMessage: (message) => hud.setMessage(message),
 });
 
-const placeDialog = createPlaceDialog(
-  {
+const chrome = createChrome({
+  document,
+  button: document.getElementById('focus-btn'),
+  stage: stageHolder,
+  getLabels: () => dict(lang).hud,
+});
+// ?hud=0 — сцена без интерфейса сразу, без клика. Полный экран требует жеста,
+// поэтому в этом случае остаётся обычное окно.
+if (params.get('hud') === '0') chrome.setVisible(false);
+
+const placeDialog = createPlaceDialog(  {
     dialog: document.getElementById('place-dialog'),
     input: document.getElementById('place-input'),
     results: document.getElementById('place-results'),
@@ -116,6 +126,7 @@ function setLanguage(nextLang) {
   document.documentElement.lang = lang;
   hud.setLang(lang);
   placeDialog.setLang();
+  chrome.sync();
   if (currentWorld) canvas.setAttribute('aria-label', describeScene(currentWorld, lang));
   const provider = controller.state.provider;
   if (provider) hud.setSourceHint(dict(lang).hud.providerHint(provider));

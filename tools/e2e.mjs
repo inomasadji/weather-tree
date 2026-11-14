@@ -315,6 +315,31 @@ async function run() {
     assert.ok(mobile.hr.right <= mobile.innerW && mobile.br.right <= mobile.innerW);
     assert.match(mobile.temp, /−11°/);
 
+    // 3. Режим созерцания: HUD и плашка прячутся, клавиша H возвращает их.
+    await evalJs(cdp, "document.getElementById('focus-btn').click()");
+    await new Promise((r) => setTimeout(r, 120));
+
+    const focus = await evalJs(cdp, `(() => ({
+      hidden: document.body.classList.contains('is-focus'),
+      hud: getComputedStyle(document.querySelector('.hud')).display,
+      bar: getComputedStyle(document.querySelector('.bar')).display,
+      pressed: document.getElementById('focus-btn').getAttribute('aria-pressed'),
+    }))()`);
+
+    assert.equal(focus.hidden, true, 'режим созерцания не включился');
+    assert.equal(focus.hud, 'none');
+    assert.equal(focus.bar, 'none');
+    assert.equal(focus.pressed, 'true');
+
+    await evalJs(cdp, "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', bubbles: true }))");
+    const restored = await evalJs(cdp, `(() => ({
+      hidden: document.body.classList.contains('is-focus'),
+      hud: getComputedStyle(document.querySelector('.hud')).display,
+    }))()`);
+
+    assert.equal(restored.hidden, false, 'клавиша H не вернула интерфейс');
+    assert.notEqual(restored.hud, 'none');
+
     // 3. Бюджет кадра под эмуляцией слабого CPU: медленное устройство не должно
     //    ронять 60 fps. Порог мягче, чем в node-бюджете (там медиана < 4 мс), и
     //    считается по медиане: p95 на 40 кадрах скачет от JIT и GC, а на общем
