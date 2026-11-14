@@ -4,7 +4,7 @@
 import { GEOCODE } from '../config.js';
 import { fetchJson } from './http.js';
 
-const round = (value) => Math.round(value * 10_000) / 10_000;
+const round = (value) => Math.round(value * 100) / 100;
 
 /** Пояс устройства — лучшее приближение для координат, полученных от геолокации. */
 function deviceTimeZone() {
@@ -58,17 +58,19 @@ export async function searchPlaces(query) {
  * @returns {Promise<{ok: true, place: object}>}
  */
 export async function reverseGeocode(lat, lon) {
+  const approxLat = round(lat);
+  const approxLon = round(lon);
   const fallback = {
-    name: `${lat.toFixed(2)}, ${lon.toFixed(2)}`,
+    name: `${approxLat.toFixed(2)}, ${approxLon.toFixed(2)}`,
     country: '',
-    lat: round(lat),
-    lon: round(lon),
+    lat: approxLat,
+    lon: approxLon,
     timeZone: deviceTimeZone(),
   };
 
   const params = new URLSearchParams({
-    latitude: String(lat),
-    longitude: String(lon),
+    latitude: String(approxLat),
+    longitude: String(approxLon),
     localityLanguage: GEOCODE.language,
   });
 
@@ -89,8 +91,8 @@ export async function reverseGeocode(lat, lon) {
     place: {
       name,
       country: data.countryName ?? region,
-      lat: round(lat),
-      lon: round(lon),
+      lat: approxLat,
+      lon: approxLon,
       timeZone: deviceTimeZone(),
     },
   };

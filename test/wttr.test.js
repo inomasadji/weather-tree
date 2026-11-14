@@ -48,7 +48,7 @@ test('mapWwoCode переводит коды WWO в WMO', () => {
 });
 
 test('buildWttrUrl использует координаты, а не название', () => {
-  assert.equal(buildWttrUrl(PLACE), 'https://wttr.in/55.7590,52.0730?format=j1');
+  assert.equal(buildWttrUrl(PLACE), 'https://wttr.in/55.76,52.07?format=j1');
 });
 
 test('localIso переводит 12-часовой формат', () => {

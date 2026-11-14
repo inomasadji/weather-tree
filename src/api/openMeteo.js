@@ -23,14 +23,16 @@ const CURRENT_FIELDS = [
 
 const DAILY_FIELDS = ['sunrise', 'sunset', 'daylight_duration'];
 
+const roundCoord = (value) => Math.round(value * 100) / 100;
+
 /**
  * @param {{lat: number, lon: number}} place
  * @returns {string}
  */
 export function buildForecastUrl(place) {
   const params = new URLSearchParams({
-    latitude: String(place.lat),
-    longitude: String(place.lon),
+    latitude: String(roundCoord(place.lat)),
+    longitude: String(roundCoord(place.lon)),
     current: CURRENT_FIELDS.join(','),
     daily: DAILY_FIELDS.join(','),
     timezone: 'auto',

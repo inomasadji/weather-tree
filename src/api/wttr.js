@@ -71,7 +71,7 @@ export function mapWwoCode(wwo) {
  * @returns {string}
  */
 export function buildWttrUrl(place) {
-  return `${WTTR.baseUrl}/${place.lat.toFixed(4)},${place.lon.toFixed(4)}?format=j1`;
+  return `${WTTR.baseUrl}/${place.lat.toFixed(2)},${place.lon.toFixed(2)}?format=j1`;
 }
 
 /**

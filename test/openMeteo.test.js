@@ -42,8 +42,8 @@ const RESPONSE = {
 test('buildForecastUrl запрашивает нужные поля и таймзону авто', () => {
   const url = new URL(buildForecastUrl(PLACE));
   assert.equal(url.origin + url.pathname, 'https://api.open-meteo.com/v1/forecast');
-  assert.equal(url.searchParams.get('latitude'), '55.7558');
-  assert.equal(url.searchParams.get('longitude'), '37.6173');
+  assert.equal(url.searchParams.get('latitude'), '55.76');
+  assert.equal(url.searchParams.get('longitude'), '37.62');
   assert.equal(url.searchParams.get('timezone'), 'auto');
   assert.equal(url.searchParams.get('wind_speed_unit'), 'kmh');
   assert.match(url.searchParams.get('current'), /weather_code/);
