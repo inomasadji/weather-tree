@@ -6,7 +6,7 @@
 
 **Демо:** <https://inomasadji.github.io/weather-tree/>
 
-**Состояние на 14.11.2026:** MVP · 157 тестов + e2e · 0 зависимостей · кадр ~0.51 мс · 4 породы по широтам · `ru`/`en` ·
+**Состояние на 14.11.2026:** MVP · 159 тестов + e2e · 0 зависимостей · кадр ~0.56 мс · 4 породы + 2.5D-пейзаж · `ru`/`en` ·
 оба сценария из ТЗ воспроизводятся на проде. Известные долги —
 [docs/AUDIT.md](docs/AUDIT.md) и [открытые issues](https://github.com/inomasadji/weather-tree/issues).
 
@@ -50,7 +50,7 @@
 
 ```bash
 npm start          # статический сервер на http://localhost:5173 (без зависимостей)
-npm test           # 157 тестов: модель, породы, API, контроллер, i18n, рантайм, бюджет, golden-кадры
+npm test           # 159 тестов: модель, породы, 2.5D-пейзаж, API, контроллер, i18n, бюджет, golden-кадры
 npm run e2e        # браузерный e2e-смоук (headless Edge/Chrome по CDP, без зависимостей)
 npm run snapshot   # PNG-кадры сценариев в snapshots/out + замер времени
 ```
