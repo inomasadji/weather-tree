@@ -35,15 +35,16 @@ export function drawSky(surface, palette, horizonY = HORIZON_Y) {
 
 /**
  * @param {import('./surface.js').Surface} surface
- * @param {{palette: object, starOpacity: number, timeMs: number, horizonY?: number}} options
+ * @param {{palette: object, starOpacity: number, timeMs: number, horizonY?: number,
+ *          shiftX?: number, shiftY?: number}} options
  */
-export function drawStars(surface, { palette, starOpacity, timeMs, horizonY = HORIZON_Y }) {
+export function drawStars(surface, { palette, starOpacity, timeMs, horizonY = HORIZON_Y, shiftX = 0, shiftY = 0 }) {
   if (starOpacity < 0.04) return;
   const skySpanY = Math.max(1, horizonY - 14);
 
   for (const star of STARS) {
-    const x = Math.floor(star.nx * surface.width);
-    const y = Math.floor(star.ny * skySpanY);
+    const x = Math.floor(star.nx * surface.width) + shiftX;
+    const y = Math.floor(star.ny * skySpanY) + shiftY;
 
     // Мерцание медленное, у каждой звезды свой период 3–7 с: ночью не должно рябить.
     const twinkle = 0.82 + 0.18 * Math.sin((timeMs / 1000) * ((Math.PI * 2) / star.period) + star.phase);
@@ -66,9 +67,10 @@ export function drawStars(surface, { palette, starOpacity, timeMs, horizonY = HO
  * Млечный путь — не гирлянда из точек, а разреженная дымка:
  * пиксели чуть светлее неба, плотность задаётся шумом.
  * @param {import('./surface.js').Surface} surface
- * @param {{palette: object, starOpacity: number, horizonY?: number}} options
+ * @param {{palette: object, starOpacity: number, horizonY?: number,
+ *          shiftX?: number, shiftY?: number}} options
  */
-export function drawMilkyWay(surface, { palette, starOpacity, horizonY = HORIZON_Y }) {
+export function drawMilkyWay(surface, { palette, starOpacity, horizonY = HORIZON_Y, shiftX = 0, shiftY = 0 }) {
   if (starOpacity < 0.55) return;
 
   const glow = mixColor(skyToneAt(palette.sky, 0.2), palette.star, 0.35);
@@ -77,15 +79,17 @@ export function drawMilkyWay(surface, { palette, starOpacity, horizonY = HORIZON
   for (let x = 0; x < surface.width; x += 1) {
     const center = baseCenter + Math.sin(x / 74) * 11 + x * 0.05 + Surface.noise(x, 3, 23) * 6;
     const thickness = 5 + Math.sin(x / 23) * 2;
+    const screenX = x + shiftX;
+    if (screenX < 0 || screenX >= surface.width) continue;
 
     for (let offset = -9; offset <= 9; offset += 1) {
-      const y = Math.round(center + offset);
+      const y = Math.round(center + offset) + shiftY;
       if (y < 0 || y > horizonY - 6) continue;
 
       const falloff = Math.max(0, 1 - Math.abs(offset) / (thickness + 4));
       const grain = Surface.noise(x, y, 19);
       const density = falloff * starOpacity * (0.04 + grain * 0.16);
-      if (bayerThreshold(x, y) < density) surface.pixel(x, y, glow);
+      if (bayerThreshold(screenX, y) < density) surface.pixel(screenX, y, glow);
     }
   }
 }

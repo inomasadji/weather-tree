@@ -3,12 +3,18 @@
 // и перерисовываются только при смене палитры, снега, сезона или размера буфера.
 
 import { HORIZON_Y, LOGICAL } from '../config.js';
-import { Surface } from './surface.js';
-import { drawSky, drawStars, drawMilkyWay } from './sky.js';
+import { drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
-import { drawHorizonHaze, drawNearForeground, paintLandscape } from './landscape.js';
-import { scenePalette } from '../model/palette.js';
+import { drawHorizonHaze, drawNearForeground } from './landscape.js';
+import {
+  blitLandscape,
+  clearLayerCache,
+  getLandscapeLayer,
+  getSkyLayer,
+  paletteFor,
+  sceneLayout,
+} from './layers.js';
 import { sunPosition, moonPosition, moonPhase } from '../model/sun.js';
 import { seasonPhase } from '../model/season.js';
 import { foliageState } from '../model/phenology.js';
@@ -16,13 +22,10 @@ import { sceneConditions } from '../model/conditions.js';
 import { speciesFor, treeSeed } from '../model/species.js';
 import { buildTree, drawLeafFall, drawShadow, drawTree } from './tree.js';
 import { drawGroundWetness, drawWeather, drawFireflies } from './weatherFx.js';
+import { drawBirds } from './birds.js';
 import { dayOfYear, stationDate } from '../model/clock.js';
 
 export const HORIZON = HORIZON_Y;
-
-const skyCache = new Map();
-const landscapeCache = new Map();
-const paletteCache = new Map();
 
 let cloudLayers = null;
 let cloudLayersWidth = 0;
@@ -30,86 +33,10 @@ let treeCache = { key: null, tree: null };
 
 /** Освобождает кэши слоёв и геометрии при уходе со страницы. */
 export function clearSceneCache() {
-  skyCache.clear();
-  landscapeCache.clear();
-  paletteCache.clear();
+  clearLayerCache();
   cloudLayers = null;
   cloudLayersWidth = 0;
   treeCache = { key: null, tree: null };
-}
-
-/** @param {number} width @param {number} height */
-function sceneLayout(width, height) {
-  const horizonY = height === LOGICAL.height
-    ? HORIZON_Y
-    : Math.round(height * (HORIZON_Y / LOGICAL.height));
-  const baseX = width === LOGICAL.width
-    ? 80
-    : width < 260
-      ? Math.round(width * 0.5)
-      : Math.round(width * 0.25);
-  const baseY = height === LOGICAL.height
-    ? height - 1
-    : Math.min(height - 26, horizonY + Math.max(58, Math.round((height - horizonY) * 0.68)));
-  return { horizonY, baseX, baseY };
-}
-
-function paletteFor(altitudeDeg, cloudPct, season, storm, neutral) {
-  const key = [
-    Math.round(altitudeDeg * 2),
-    Math.round(cloudPct / 5),
-    Math.round(season * 40),
-    storm ? 's' : 'c',
-    neutral ? 'n' : 'd',
-  ].join('|');
-
-  let palette = paletteCache.get(key);
-  if (!palette) {
-    palette = scenePalette({ altitudeDeg, cloudPct, seasonPhase: season, storm, neutral });
-    paletteCache.set(key, palette);
-    if (paletteCache.size > 24) paletteCache.delete(paletteCache.keys().next().value);
-  }
-
-  return { palette, key };
-}
-
-function getSkyLayer(width, height, palette, key, horizonY) {
-  const cached = skyCache.get(key);
-  if (cached) return cached;
-
-  const layer = new Surface(width, height);
-  drawSky(layer, palette, horizonY);
-  skyCache.set(key, layer);
-  if (skyCache.size > 8) skyCache.delete(skyCache.keys().next().value);
-  return layer;
-}
-
-function getLandscapeLayer(width, height, key, options) {
-  const cached = landscapeCache.get(key);
-  if (cached) return cached;
-
-  const layer = new Surface(width, height);
-  const bounds = paintLandscape(layer, options);
-  const entry = { layer, ...bounds };
-  landscapeCache.set(key, entry);
-  if (landscapeCache.size > 8) landscapeCache.delete(landscapeCache.keys().next().value);
-  return entry;
-}
-
-/** Переносит кэшированный ландшафт на сцену: холмы/лес с маской, грунт — одним блоком. */
-function blitLandscape(surface, { layer, minY, maxGroundY }) {
-  const { width } = surface;
-  const start = minY * width;
-  const maskEnd = maxGroundY * width;
-
-  for (let i = start; i < maskEnd; i += 1) {
-    const pixel = layer.pixels[i];
-    if (pixel !== 0) surface.pixels[i] = pixel;
-  }
-
-  if (maxGroundY < surface.height) {
-    surface.pixels.set(layer.pixels.subarray(maskEnd), maskEnd);
-  }
 }
 
 /**
@@ -118,8 +45,10 @@ function blitLandscape(surface, { layer, minY, maxGroundY }) {
  * @param {object} world WorldState
  * @param {number} [atMs] реальное время кадра (астрономия, палитра)
  * @param {number} [animMs] часы анимации (облака, мерцание)
+ * @param {{x: number, y: number}} [view] сдвиг камеры −1…1: дальний план уходит
+ *   в одну сторону, ближняя трава — в другую (параллакс)
  */
-export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
+export function renderScene(surface, world, atMs = Date.now(), animMs = atMs, view = { x: 0, y: 0 }) {
   if (!world || !world.place) return;
 
   const { width, height } = surface;
@@ -127,6 +56,13 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   const { lat, lon } = world.place;
   const hemisphere = lat >= 0 ? 'N' : 'S';
   const offset = world.now?.utcOffsetSeconds ?? 0;
+
+  // Параллакс: небо уходит против движения камеры, ближняя трава — по движению.
+  const zoom = width / LOGICAL.width;
+  const farX = -Math.round((view?.x ?? 0) * 2.4 * zoom);
+  const farY = -Math.round((view?.y ?? 0) * 1.2 * zoom);
+  const nearX = Math.round((view?.x ?? 0) * 1.6 * zoom);
+  const nearY = Math.round((view?.y ?? 0) * 0.8 * zoom);
 
   const sun = sunPosition(atMs, lat, lon);
   const moon = moonPosition(atMs, lat, lon);
@@ -156,7 +92,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     ? celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg, horizonY)
     : { x: Math.round(surface.width / 2), y: horizonY };
   const sunDir = sunPoint.x >= baseX ? 1 : -1;
-
   const snowBucket = Math.round(conditions.snowCover * 10);
   const rimeBucket = Math.round(conditions.rime * 10);
   const skyKey = `${paletteKey}:${horizonY}:${width}x${height}`;
@@ -166,13 +101,28 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   surface.pixels.set(sky.pixels);
 
   if (known) {
-    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY });
-    drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs, horizonY });
-    drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
+    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY, shiftX: farX, shiftY: farY });
+    drawStars(surface, {
+      palette,
+      starOpacity: palette.starOpacity,
+      timeMs: animMs,
+      horizonY,
+      shiftX: farX,
+      shiftY: farY,
+    });
+    drawSun(surface, {
+      ...sunPoint,
+      x: sunPoint.x + farX,
+      y: sunPoint.y + farY,
+      palette,
+      altitudeDeg: sun.altitudeDeg,
+    });
 
     const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg, horizonY);
     drawMoon(surface, {
       ...moonPoint,
+      x: moonPoint.x + farX,
+      y: moonPoint.y + farY,
       palette,
       phase,
       altitudeDeg: moon.altitudeDeg,
@@ -193,9 +143,25 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     sunAltitudeDeg: sun.altitudeDeg,
     fog: conditions.fog,
     horizonY,
+    shiftX: farX,
+    shiftY: farY,
   });
 
   drawHorizonHaze(surface, palette, horizonY);
+
+  // Птицы: только днём, без осадков и тумана, не в глухую зиму.
+  if (
+    known &&
+    palette.starOpacity <= 0.02 &&
+    conditions.precip.type === 'none' &&
+    conditions.fog < 0.3 &&
+    cloudPct < 85 &&
+    (world.weather?.windKmh ?? 0) < 35 &&
+    season > 0.14 &&
+    season < 0.86
+  ) {
+    drawBirds(surface, { timeMs: animMs, palette, shiftX: farX, shiftY: farY });
+  }
 
   const landscape = getLandscapeLayer(width, height, landKey, {
     palette,
@@ -259,6 +225,8 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     seed,
     baseX,
     snowCover: conditions.snowCover,
+    viewX: nearX,
+    viewY: nearY,
   });
 
   // Светлячки: тёплый сезон, тёмная тихая ночь без осадков и тумана.
