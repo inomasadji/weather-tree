@@ -94,3 +94,34 @@ test('buildAmbientWorld: погода ещё неизвестна', () => {
   assert.ok(Number.isFinite(world.derived.sun.altitudeDeg));
   assert.ok(world.derived.season >= 0 && world.derived.season < 1);
 });
+
+test('world.sun: восход и закат считаются, если API их не дал', () => {
+  const withoutDaily = { ...STATION, daily: { sunrise: null, sunset: null, daylightSeconds: null } };
+  const world = buildWorldState(withoutDaily, Date.UTC(2026, 5, 21, 9, 0));
+
+  assert.ok(world.sun);
+  assert.equal(world.sun.polar, null);
+  assert.match(world.sun.sunrise, /^2026-06-21T0[0-9]:[0-9]{2}$/);
+  assert.match(world.sun.sunset, /^2026-06-21T2[0-3]:[0-9]{2}$/);
+  assert.ok(world.sun.daylightSeconds > 17 * 3600);
+});
+
+test('world.sun: значения API важнее расчёта', () => {
+  const world = buildWorldState(STATION, Date.UTC(2026, 0, 14, 16, 15));
+
+  assert.equal(world.sun.sunrise, '2026-01-14T08:56');
+  assert.equal(world.sun.sunset, '2026-01-14T16:34');
+});
+
+test('world.sun: полярная ночь в Мурманске', () => {
+  const murmansk = {
+    ...STATION,
+    place: { name: 'Мурманск', country: 'Россия', lat: 68.9585, lon: 33.0827 },
+    daily: { sunrise: null, sunset: null, daylightSeconds: null },
+  };
+  const world = buildWorldState(murmansk, Date.UTC(2026, 11, 21, 9, 0));
+
+  assert.equal(world.sun.polar, 'night');
+  assert.equal(world.sun.sunrise, null);
+  assert.equal(world.sun.sunset, null);
+});

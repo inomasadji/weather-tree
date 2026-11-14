@@ -17,6 +17,18 @@ export function stationDate(offsetSeconds = 0, atMs = Date.now()) {
 }
 
 /**
+ * Момент времени → местная ISO-строка без зоны: «2026-01-14T19:15».
+ * Нужно, чтобы восход/закат из расчёта выглядели так же, как из API.
+ * @param {number|null} atMs
+ * @param {number} offsetSeconds
+ * @returns {string|null}
+ */
+export function toLocalIso(atMs, offsetSeconds = 0) {
+  if (atMs === null || !Number.isFinite(atMs)) return null;
+  return new Date(atMs + offsetSeconds * 1000).toISOString().slice(0, 16);
+}
+
+/**
  * @param {Date} date
  * @returns {{hh: string, mm: string, ss: string}}
  */

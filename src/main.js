@@ -81,10 +81,8 @@ function applyStation(station, source) {
   state.lastFetchAt = station.fetchedAt;
   state.provider = station.provider ?? state.provider;
   // Мир строим на времени сцены, иначе в демо-режиме астрономия разъедется с часами.
-  setWorld(
-    buildWorldState(station, sceneNow()),
-    source === 'demo' ? 0 : 2500,
-  );
+  const world = buildWorldState(station, sceneNow());
+  setWorld(world, source === 'demo' ? 0 : 2500);
 
   hud.setPlace(station.place ?? state.place);
   hud.setStation(station, {
@@ -93,9 +91,9 @@ function applyStation(station, source) {
   });
   hud.setSourceHint(state.provider ? `источник: ${state.provider}` : null);
   hud.setMessage(null);
-
-  if (state.world) {
-    canvas.setAttribute('aria-label', describeScene(state.world));
+  if (world) {
+    hud.setSun(world.sun);
+    canvas.setAttribute('aria-label', describeScene(world));
   }
 }
 
@@ -174,7 +172,9 @@ const placeDialog = createPlaceDialog(
     clearRetry();
     hud.setPlace(place);
     // Сначала нейтральный кадр новой точки, потом погода — так переход мягче.
-    setWorld(buildAmbientWorld(place), 600);
+    const ambient = buildAmbientWorld(place);
+    setWorld(ambient, 600);
+    hud.setSun(ambient.sun);
     hud.setMessage('Погода загружается…');
     await loadWeather();
   },
@@ -234,6 +234,7 @@ function frame(now) {
     state.world = buildWorldState(state.station, at);
     lastWorldBuild = at;
     canvas.setAttribute('aria-label', describeScene(state.world));
+    hud.setSun(state.world.sun);
   }
 
   if (state.world) {
@@ -311,7 +312,9 @@ async function start() {
   const { place } = await resolvePlace();
   state.place = place;
   // До прихода погоды — нейтральный кадр, а не уверенное «ясно».
-  setWorld(buildAmbientWorld(place), 0);
+  const ambient = buildAmbientWorld(place);
+  setWorld(ambient, 0);
+  hud.setSun(ambient.sun);
   hud.setPlace(place);
   hud.setMessage('Погода загружается…');
 
@@ -323,3 +326,12 @@ async function start() {
 }
 
 start();
+
+// Офлайн-оболочка только на проде: на localhost кэш мешает разработке.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // Регистрация не критична: без неё приложение просто не работает офлайн.
+    });
+  });
+}

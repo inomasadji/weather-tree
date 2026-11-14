@@ -5,6 +5,7 @@
 import { hexColor, mixColor } from './color.js';
 import { Surface, bayerThreshold } from './surface.js';
 import { shade } from '../model/palette.js';
+import { hash2 } from './noise.js';
 
 const BARK = hexColor('#4a3626');
 const BARK_LIGHT = hexColor('#63492f');
@@ -57,7 +58,14 @@ export function buildTree(seed) {
     segments.push({ x1: x, y1: y, x2, y2, width, depth });
 
     if (depth === 0) {
-      clusters.push({ x: x2, y: y2, radius: 8 + random() * 5, depth });
+      clusters.push({
+        x: x2,
+        y: y2,
+        radius: 8 + random() * 5,
+        depth,
+        phase: random() * Math.PI * 2,
+        sway: 0.6 + random() * 0.8,
+      });
       return;
     }
 
@@ -69,6 +77,8 @@ export function buildTree(seed) {
         y: (y + y2) / 2 + (random() - 0.5) * 4,
         radius: 7 + random() * 4,
         depth,
+        phase: random() * Math.PI * 2,
+        sway: 0.55 + random() * 0.9,
       });
     }
 
@@ -119,11 +129,12 @@ function drawBranch(surface, x1, y1, x2, y2, width, color) {
  * Тень на земле: смещение и длина зависят от солнца, плотность — от его высоты.
  * @param {Surface} surface
  * @param {object} tree
- * @param {{sunAltitudeDeg: number, hourAngleDeg: number, light: number, groundColor: number}} options
+ * @param {{sunAltitudeDeg: number, sunScreenX: number, light: number,
+ *          groundColor: number, cloudPct?: number}} options
  */
 export function drawShadow(surface, tree, {
   sunAltitudeDeg,
-  hourAngleDeg,
+  sunScreenX,
   light,
   groundColor,
   cloudPct = 0,
@@ -131,10 +142,11 @@ export function drawShadow(surface, tree, {
   if (sunAltitudeDeg < 2 || light < 0.05) return;
 
   const altitude = Math.max(6, sunAltitudeDeg);
-  // Чем ниже солнце, тем длиннее тень; направление — противоположно солнцу.
+  // Чем ниже солнце, тем длиннее тень. Сторона противоположна светилу на экране,
+  // поэтому азимут и полушарие учитываются сами собой.
   const length = Math.min(52, 18 / Math.tan((altitude * Math.PI) / 180));
-  const direction = hourAngleDeg > 0 ? -1 : 1;
-  const cx = tree.baseX + direction * length * 0.5;
+  const direction = sunScreenX < tree.baseX ? 1 : -1;
+  const cx = tree.baseX + direction * length * 0.55;
   const rx = 14 + length * 0.55;
   const ry = 4 + length * 0.06;
   // Пасмурное небо даёт рассеянный свет — тень почти исчезает.
@@ -184,7 +196,7 @@ function drawCluster(surface, cluster, offsetX, foliage, light) {
 
       surface.pixel(x, y, tone);
 
-      if (foliage.blossom > 0.08 && grain > 1 - foliage.blossom * 0.28) {
+      if (foliage.blossom > 0.08 && grain > 1 - foliage.blossom * 0.14) {
         surface.pixel(x, y, shade(hexColor('#f6dbe6'), Math.max(0.15, light)));
       } else if (foliage.fruit > 0.08 && grain < foliage.fruit * 0.03) {
         surface.pixel(x, y, shade(hexColor('#c0392b'), Math.max(0.15, light)));
@@ -322,7 +334,10 @@ export function drawTree(surface, tree, {
 
     const sorted = [...tree.clusters].sort((a, b) => a.y - b.y);
     for (const cluster of sorted) {
-      drawCluster(surface, cluster, sway(cluster.y), foliage, light);
+      // Каждый кластер «дышит» в своей фазе — крона не двигается монолитом.
+      const drift =
+        windAmp * 2.4 * Math.sin(seconds * 2.3 + (cluster.phase ?? 0)) * (cluster.sway ?? 1);
+      drawCluster(surface, cluster, sway(cluster.y) + drift, foliage, light);
     }
 
     // Снежная шапка сверху кроны.
@@ -340,5 +355,59 @@ export function drawTree(surface, tree, {
         }
       }
     }
+  }
+}
+
+/**
+ * Листопад: частицы листьев и опад на земле. Позиция — функция времени,
+ * поэтому кадр детерминирован и не «дёргается» между перерисовками.
+ * @param {Surface} surface
+ * @param {object} tree
+ * @param {{foliage: object, windKmh: number, timeMs: number, light: number}} options
+ */
+export function drawLeafFall(surface, tree, { foliage, windKmh, timeMs, light }) {
+  const active = foliage.coverage > 0.08 && (foliage.litter > 0.12 || windKmh > 22);
+  const litterTone = shade(foliage.tones[1], Math.max(0.2, light));
+
+  // Опад на земле — есть почти всегда, когда листва редеет.
+  if (foliage.litter > 0.06) {
+    for (let dx = -48; dx <= 48; dx += 1) {
+      const x = tree.baseX + dx;
+      const noise = Surface.noise(x, tree.baseY, 43);
+      if (noise < foliage.litter * 0.4) {
+        surface.pixel(x, tree.baseY - 3 - Math.round(noise * 9), litterTone);
+      }
+    }
+  }
+
+  if (!active) return;
+
+  const crown = tree.clusters.reduce(
+    (bounds, cluster) => ({
+      minX: Math.min(bounds.minX, cluster.x),
+      maxX: Math.max(bounds.maxX, cluster.x),
+      minY: Math.min(bounds.minY, cluster.y),
+      maxY: Math.max(bounds.maxY, cluster.y),
+    }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+  );
+  if (!Number.isFinite(crown.minX)) return;
+
+  const count = Math.min(24, Math.round(6 + foliage.litter * 26 + (windKmh > 22 ? 8 : 0)));
+  const seconds = timeMs / 1000;
+
+  for (let index = 0; index < count; index += 1) {
+    const seedX = crown.minX + hash2(index, 1, 37) * (crown.maxX - crown.minX);
+    const seedY = crown.minY + hash2(index, 2, 37) * (crown.maxY - crown.minY);
+    const fall = 11 + hash2(index, 3, 37) * 15;
+    const life = 4 + hash2(index, 4, 37) * 4;
+    const age = (seconds * (0.6 + windKmh / 60) + index * 1.37) % life;
+
+    const x = seedX + age * (1.2 + windKmh * 0.22) + Math.sin(age * 2.4 + index) * 3;
+    const y = seedY + age * fall;
+
+    if (y < crown.maxY - 6 || y > tree.baseY - 2 || x < 0 || x > surface.width) continue;
+
+    surface.pixel(Math.round(x), Math.round(y), shade(foliage.tones[index % 3], Math.max(0.25, light)));
   }
 }

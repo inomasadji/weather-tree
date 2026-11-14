@@ -15,7 +15,7 @@ import { scenePalette } from '../src/model/palette.js';
 
 const MOSCOW = { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' };
 
-const EXPECTED_HASH = 'fff8a9cc57ce99d8';
+const EXPECTED_HASH = '5ee153e1c3174f5f';
 
 const SUMMER_NOON = Date.UTC(2026, 6, 9, 9, 0);
 const WINTER_NIGHT = Date.UTC(2026, 0, 14, 16, 15);

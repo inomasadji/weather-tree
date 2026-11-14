@@ -1,0 +1,20 @@
+{
+  "name": "Weather Tree — погодный экран с деревом",
+  "short_name": "Weather Tree",
+  "description": "Пиксельное дерево, которое живёт по времени года, времени суток и погоде.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070b18",
+  "theme_color": "#070b18",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

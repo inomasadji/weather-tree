@@ -12,8 +12,8 @@ import { sunPosition, moonPosition, moonPhase } from '../model/sun.js';
 import { seasonPhase } from '../model/season.js';
 import { foliageState } from '../model/phenology.js';
 import { sceneConditions } from '../model/conditions.js';
-import { buildTree, drawShadow, drawTree, treeSeed } from './tree.js';
-import { drawWeather } from './weatherFx.js';
+import { buildTree, drawLeafFall, drawShadow, drawTree, treeSeed } from './tree.js';
+import { drawGroundWetness, drawWeather } from './weatherFx.js';
 import { dayOfYear, stationDate } from '../model/clock.js';
 import { bayerThreshold } from './surface.js';
 
@@ -189,11 +189,14 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   surface.pixels.set(sky.pixels);
 
   // Светила и звёзды — только когда погода известна.
+  const sunPoint = known
+    ? celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg)
+    : { x: Math.round(surface.width / 2), y: HORIZON };
+
   if (known) {
     drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity });
     drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs });
 
-    const sunPoint = celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg);
     drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
 
     const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg);
@@ -217,6 +220,7 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     timeMs: animMs,
     palette,
     sunAltitudeDeg: sun.altitudeDeg,
+    fog: conditions.fog,
   });
 
   // Дымка у горизонта поверх облаков — воздух плотнее у земли.
@@ -250,6 +254,9 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   const ground = getGroundLayer(width, height, palette, key, conditions.snowCover);
   surface.pixels.set(ground.pixels.subarray(GROUND_TOP * width), GROUND_TOP * width);
 
+  // Мокрый грунт и лужи — до дерева, чтобы ствол оставался поверх.
+  drawGroundWetness(surface, conditions, { palette, timeMs: animMs });
+
   // Дерево: сначала тень, потом ствол и крона.
   const seed = treeSeed(lat, lon);
   if (treeCache.seed !== seed) {
@@ -258,17 +265,19 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
 
   drawShadow(surface, treeCache.tree, {
     sunAltitudeDeg: sun.altitudeDeg,
-    hourAngleDeg: sun.hourAngleDeg,
+    sunScreenX: sunPoint.x,
     light: palette.light,
     groundColor: conditions.snowCover > 0.5 ? palette.land.snow : palette.land.ground,
     cloudPct,
   });
 
+  const foliage = foliageState(season, {
+    tempC: world.weather?.tempC ?? 10,
+    windKmh: world.weather?.windKmh ?? 0,
+  });
+
   drawTree(surface, treeCache.tree, {
-    foliage: foliageState(season, {
-      tempC: world.weather?.tempC ?? 10,
-      windKmh: world.weather?.windKmh ?? 0,
-    }),
+    foliage,
     timeMs: animMs,
     windAmp: conditions.windAmp,
     windDirDeg: world.weather?.windDirDeg ?? 0,
@@ -276,6 +285,13 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     snowLoad: conditions.snowLoad,
     snowColor: palette.land.snow,
     wetness: conditions.wetness,
+  });
+
+  drawLeafFall(surface, treeCache.tree, {
+    foliage,
+    windKmh: world.weather?.windKmh ?? 0,
+    timeMs: animMs,
+    light: palette.light,
   });
 
   drawWeather(surface, conditions, {

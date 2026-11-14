@@ -70,8 +70,8 @@ function drawPrecipitation(surface, precip, { timeMs, windKmh, light }) {
 }
 
 /**
- * Туман: мягкое выцветание контраста, сильнее у земли.
- * Сначала полупрозрачный слой (veil), потом разреженные «клочья» дизерингом.
+ * Туман: мягкое выцветание контраста по всей высоте, сильнее у земли.
+ * Крона и облака тоже тонут в дымке — иначе дерево «вне тумана».
  * @param {import('./surface.js').Surface} surface
  * @param {number} fog 0…1
  * @param {number} light
@@ -80,11 +80,11 @@ function drawFog(surface, fog, light) {
   if (fog < 0.03) return;
 
   const color = shade(FOG_COLOR, Math.max(0.5, light));
-  const top = Math.max(0, Math.round(HORIZON_Y - 70));
+  const maxDepth = Math.max(1, surface.height - 1);
 
-  for (let y = top; y < surface.height; y += 1) {
-    const depth = (y - top) / Math.max(1, surface.height - top);
-    const alpha = fog * (0.05 + depth ** 1.6 * 1.15);
+  for (let y = 0; y < surface.height; y += 1) {
+    const depth = y / maxDepth;
+    const alpha = fog * (0.04 + depth ** 1.7 * 0.95);
     if (alpha <= 0.01) continue;
 
     surface.veil(0, y, surface.width, 1, withAlpha(color, Math.round(Math.min(0.92, alpha) * 255)));
@@ -92,7 +92,41 @@ function drawFog(surface, fog, light) {
 }
 
 /**
- * Вспышка грозы: короткая, затухающая, раз в несколько секунд.
+ * Молния: ломаная от облака к земле с ответвлениями.
+ * @param {import('./surface.js').Surface} surface
+ * @param {number} slot
+ * @param {number} color
+ */
+function drawBolt(surface, slot, color) {
+  let x = 12 + hash2(slot, 1, 29) * (surface.width - 24);
+  let y = 6;
+  const endY = HORIZON_Y + 4;
+
+  while (y < endY) {
+    const stepY = 7 + hash2(slot, Math.round(y), 33) * 9;
+    const nextX = x + (hash2(slot, Math.round(y), 31) - 0.5) * 20;
+    const nextY = Math.min(endY, y + stepY);
+
+    surface.line(Math.round(x), Math.round(y), Math.round(nextX), Math.round(nextY), color);
+
+    if (hash2(slot, Math.round(y), 37) < 0.3) {
+      const branchX = nextX + (hash2(slot, Math.round(y), 39) - 0.5) * 26;
+      surface.line(
+        Math.round(nextX),
+        Math.round(nextY),
+        Math.round(branchX),
+        Math.round(nextY + 6),
+        color,
+      );
+    }
+
+    x = nextX;
+    y = nextY;
+  }
+}
+
+/**
+ * Вспышка грозы: разряд и короткая засветка, раз в несколько секунд.
  * @param {import('./surface.js').Surface} surface
  * @param {number} timeMs
  * @param {object} palette
@@ -107,11 +141,76 @@ function drawFlash(surface, timeMs, palette) {
   if (local > 0.22) return;
 
   const power = 1 - local / 0.22;
+
+  // Сам разряд виден только в первые кадры — как настоящая молния.
+  if (local < 0.12) {
+    drawBolt(surface, slot, mixColor(palette.cloudRim, hexColor('#ffffff'), 0.75));
+  }
   const color = mixColor(palette.cloudLight, FLASH_COLOR, 0.7);
 
   for (let y = 0; y < surface.height; y += 1) {
     for (let x = 0; x < surface.width; x += 1) {
-      if (bayerThreshold(x, y) < power * 0.55) surface.pixel(x, y, color);
+      if (bayerThreshold(x, y) < power * 0.25) surface.pixel(x, y, color);
+    }
+  }
+}
+
+/**
+ * Мокрый грунт: затемнение, лужи с отражением неба и брызги от капель.
+ * Рисуется сразу после земли, до дерева — лужи не должны наезжать на ствол.
+ * @param {import('./surface.js').Surface} surface
+ * @param {object} conditions результат sceneConditions
+ * @param {{palette: object, timeMs: number}} options
+ */
+export function drawGroundWetness(surface, conditions, { palette, timeMs }) {
+  const wetness = conditions.wetness;
+  if (wetness < 0.05) return;
+
+  const width = surface.width;
+  const top = HORIZON_Y;
+  const rim = shade(palette.cloudRim, Math.max(0.3, palette.light));
+
+  // Мокрый грунт темнее сухого.
+  surface.veil(
+    0,
+    top,
+    width,
+    surface.height - top,
+    withAlpha(mixColor(palette.land.ground, hexColor('#0a1220'), 0.45), Math.round(wetness * 150)),
+  );
+
+  // Лужи: отражение неба у горизонта плюс бегущая рябь.
+  const reflection = mixColor(
+    mixColor(palette.sky[1] ?? palette.sky[0], palette.land.ground, 0.45),
+    hexColor('#0a1220'),
+    0.15,
+  );
+
+  for (let index = 0; index < 5; index += 1) {
+    const cx = Math.round(18 + index * 62 + hash2(index, 1, 61) * 26);
+    const cy = Math.round(top + 8 + hash2(index, 2, 61) * 16);
+    const rx = Math.round(7 + hash2(index, 3, 61) * 10);
+    const ry = Math.round(2 + hash2(index, 4, 61) * 2);
+
+    surface.ellipse(cx, cy, rx, ry, reflection);
+
+    for (let ripple = 0; ripple < 2; ripple += 1) {
+      const phase = (timeMs / 1300 + index * 0.37 + ripple * 0.5) % 1;
+      const half = Math.round(rx * (0.25 + phase * 0.7));
+      surface.fillRect(cx - half, cy - 1, 2 + Math.round((1 - phase) * 3), 1, rim);
+    }
+  }
+
+  // Брызги: короткие вертикальные штрихи у земли.
+  if (conditions.precip.type === 'rain' || conditions.precip.type === 'drizzle') {
+    for (let index = 0; index < 22; index += 1) {
+      const x = Math.round(hash2(index, 5, 67) * width);
+      const baseY = Math.round(top + 2 + hash2(index, 6, 67) * 10);
+      const phase = (timeMs / 420 + hash2(index, 7, 67)) % 1;
+      if (phase > 0.3) continue;
+
+      const height = Math.max(1, Math.round((1 - phase / 0.3) * 3));
+      surface.fillRect(x, baseY - height, 1, height + 1, rim);
     }
   }
 }

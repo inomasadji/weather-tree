@@ -8,6 +8,7 @@ import {
   formatRelative,
   offsetSecondsFor,
   stationDate,
+  toLocalIso,
 } from '../src/model/clock.js';
 
 test('stationDate сдвигает момент на смещение пояса', () => {
@@ -63,4 +64,10 @@ test('offsetSecondsFor без пояса отдаёт пояс устройст�
   const offset = offsetSecondsFor(null, Date.UTC(2026, 0, 14, 12, 0));
   assert.equal(typeof offset, 'number');
   assert.equal(offset, -new Date(Date.UTC(2026, 0, 14, 12, 0)).getTimezoneOffset() * 60);
+});
+
+test('toLocalIso: момент → местная ISO-строка', () => {
+  assert.equal(toLocalIso(Date.UTC(2026, 0, 14, 5, 56), 3 * 3600), '2026-01-14T08:56');
+  assert.equal(toLocalIso(Date.UTC(2026, 0, 14, 13, 34), 3 * 3600), '2026-01-14T16:34');
+  assert.equal(toLocalIso(null, 0), null);
 });

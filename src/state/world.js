@@ -2,13 +2,13 @@
 // Здесь только нормализация и астрономия; фенология листвы и осадки — в M4–M5.
 
 import { describeWeather, isPrecipitation, windCardinal } from '../model/weather.js';
-import { dayOfYear, offsetSecondsFor, stationDate } from '../model/clock.js';
-import {
+import { dayOfYear, offsetSecondsFor, stationDate, toLocalIso } from '../model/clock.js';import {
   SUNRISE_ALTITUDE,
   daylightPhase,
   moonIllumination,
   moonPhase,
   moonPosition,
+  sunriseSunset,
   sunPosition,
 } from '../model/sun.js';
 import { seasonPhase } from '../model/season.js';
@@ -31,6 +31,12 @@ export function buildWorldState(station, atMs = Date.now()) {
   const sun = sunPosition(atMs, lat, lon);
   const moon = moonPosition(atMs, lat, lon);
   const phase = moonPhase(atMs);
+
+  // Восход/закат: доверяем провайдеру, иначе считаем сами (важно для wttr.in).
+  const times = sunriseSunset(atMs, lat, lon, offset);
+  const daily = station.daily ?? {};
+  const sunrise = daily.sunrise ?? toLocalIso(times.sunrise, offset);
+  const sunset = daily.sunset ?? toLocalIso(times.sunset, offset);
 
   return {
     now: {
@@ -62,6 +68,12 @@ export function buildWorldState(station, atMs = Date.now()) {
       windCardinal: windCardinal(current.windDirDeg),
     },
     daily: station.daily ?? { sunrise: null, sunset: null, daylightSeconds: null },
+    sun: {
+      sunrise,
+      sunset,
+      polar: times.polar,
+      daylightSeconds: times.daylightSeconds || daily.daylightSeconds || 0,
+    },
     derived: {
       hemisphere,
       /** День/ночь — по астрономии, а не по флагу провайдера. */

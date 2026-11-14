@@ -29,6 +29,7 @@ export function createHud(doc = document) {
     source: byId('source'),
     place: byId('place-btn'),
     message: byId('hud-message'),
+    sun: byId('sun-times'),
   };
 
   let offsetSeconds = -new Date().getTimezoneOffset() * 60;
@@ -117,10 +118,38 @@ export function createHud(doc = document) {
     el.message.hidden = !text;
   }
 
+  /**
+   * Восход и закат. Для полярных широт — словесная метка вместо пустых часов.
+   * @param {{sunrise: string|null, sunset: string|null, polar: string|null}|null} sun
+   */
+  function setSun(sun) {
+    if (!el.sun) return;
+
+    if (!sun) {
+      setText(el.sun, '');
+      return;
+    }
+
+    if (sun.polar === 'day') {
+      setText(el.sun, 'полярный день');
+      return;
+    }
+    if (sun.polar === 'night') {
+      setText(el.sun, 'полярная ночь');
+      return;
+    }
+
+    const clock = (iso) => (typeof iso === 'string' ? iso.slice(11, 16) : null);
+    const sunrise = clock(sun.sunrise);
+    const sunset = clock(sun.sunset);
+
+    setText(el.sun, sunrise && sunset ? `восход ${sunrise} · закат ${sunset}` : '');
+  }
+
   /** Короткая подсказка под плашкой источника (какой провайдер ответил). */
   function setSourceHint(text) {
     if (el.source) el.source.title = text ?? '';
   }
 
-  return { tick, setStation, setSource, setPlace, setMessage, setSourceHint, element: el };
+  return { tick, setStation, setSource, setPlace, setMessage, setSourceHint, setSun, element: el };
 }

@@ -2,7 +2,7 @@
 // по квантилю — поэтому «облачность 5 %» действительно означает ~5 % неба,
 // а не случайную горсть пикселей.
 
-import { fbm2D } from './noise.js';
+import { fbm2D, hash2 } from './noise.js';
 import { mixColor } from './color.js';
 import { skyToneAt } from '../model/palette.js';
 import { HORIZON_Y } from '../config.js';
@@ -84,6 +84,7 @@ export function drawClouds(surface, layers, {
   timeMs,
   palette,
   sunAltitudeDeg,
+  fog = 0,
 }) {
   if (coverage < 0.02) return;
 
@@ -102,6 +103,7 @@ export function drawClouds(surface, layers, {
     const threshold = overcast ? -1 : quantileThreshold(layer, fraction);
     const drift = seconds * layer.speed * (3 + windKmh * 0.55) + layer.offset * layer.width;
     const shift = Math.floor(drift) % layer.width;
+    const height = layer.height - 1;
 
     for (let row = 0; row < layer.height; row += 1) {
       const screenY = layer.y + row;
@@ -110,19 +112,29 @@ export function drawClouds(surface, layers, {
       // Облако светится тем небом, на котором лежит: у горизонта — закатное,
       // в зените — холодное. Иначе сумрак получается ровно-фиолетовым.
       const tone = skyToneAt(palette.sky, screenY / HORIZON_Y);
-      const body = mixColor(tone, palette.cloudLight, 0.5);
-      const rim = mixColor(body, palette.cloudRim, 0.65);
-      const dark = mixColor(body, palette.cloudDark, 0.6);
+      const fogMix = fog * (0.2 + 0.8 * Math.min(1, screenY / HORIZON_Y)) * 0.5;
+      const body = mixColor(mixColor(tone, palette.cloudLight, 0.5), palette.haze, fogMix);
+      const rim = mixColor(mixColor(body, palette.cloudRim, 0.65), palette.haze, fogMix * 0.8);
+      const dark = mixColor(mixColor(body, palette.cloudDark, 0.6), palette.haze, fogMix);
 
       const rowStart = (row + layer.padded) * layer.width;
 
+      // Края полосы не должны обрываться линейкой: пара строк с разрежением.
+      const edgeFade = Math.min(row, height - row);
+
       for (let x = 0; x < layer.width; x += 1) {
+        if (edgeFade < 2 && hash2(x, row, 53) < (2 - edgeFade) * 0.45) continue;
+
         const index = x + shift >= layer.width ? x + shift - layer.width : x + shift;
 
         if (overcast) {
           // Сплошной слой: дыры не нужны, но нужна фактура — два тона по рельефу.
           const value = layer.values[rowStart + index];
-          surface.pixel(x, screenY, value > 0.48 ? body : dark);
+          let color = value > 0.48 ? body : dark;
+          // Нижняя часть слоя темнее — у оверкаста есть вертикальный профиль.
+          const shadeT = Math.max(0, row / layer.height - 0.55) * 1.4;
+          if (shadeT > 0) color = mixColor(color, dark, Math.min(1, shadeT));
+          surface.pixel(x, screenY, color);
           continue;
         }
 
