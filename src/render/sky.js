@@ -8,13 +8,15 @@ import { hash2 } from './noise.js';
 
 const STAR_COUNT = 130;
 
-/** Позиции и яркость звёзд фиксированы: ночное небо не должно «кишеть» по-новому. */
+/** Позиции, яркость и темп мерцания фиксированы: ночное небо не должно «кишеть» по-новому. */
 const STARS = Array.from({ length: STAR_COUNT }, (_, index) => ({
   nx: hash2(index, 1, 3),
   ny: hash2(index, 2, 5),
   // Квадрат сдвигает распределение к тусклым звёздам: ярких мало.
   brightness: 0.18 + hash2(index, 3, 7) ** 2 * 0.82,
   phase: hash2(index, 4, 11) * Math.PI * 2,
+  /** Свой период мерцания 3–7 с: звёзды не мигают в такт друг другу. */
+  period: 3 + hash2(index, 5, 13) * 4,
 }));
 
 /**
@@ -43,8 +45,8 @@ export function drawStars(surface, { palette, starOpacity, timeMs, horizonY = HO
     const x = Math.floor(star.nx * surface.width);
     const y = Math.floor(star.ny * skySpanY);
 
-    // Мерцание медленное и слабое: ночью не должно рябить.
-    const twinkle = 0.8 + 0.2 * Math.sin(timeMs / 1100 + star.phase);
+    // Мерцание медленное, у каждой звезды свой период 3–7 с: ночью не должно рябить.
+    const twinkle = 0.82 + 0.18 * Math.sin((timeMs / 1000) * ((Math.PI * 2) / star.period) + star.phase);
     const visibility = starOpacity * star.brightness * twinkle;
     if (visibility <= bayerThreshold(x, y)) continue;
 

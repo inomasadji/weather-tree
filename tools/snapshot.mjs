@@ -135,6 +135,13 @@ export const SCENARIOS = [
     sinceRainMin: 5,
     lastRainIntensity: 0.6,
   },
+  {
+    // Тёплая тихая ночь: светлячки над лугом и мерцание звёзд.
+    name: 'm11-summer-night',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 6, 20, 20, 30),
+    weather: { tempC: 16, code: 0, cloudPct: 5, windKmh: 4, humidity: 65 },
+  },
 ];
 
 /**

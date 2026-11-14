@@ -15,7 +15,7 @@ import { foliageState } from '../model/phenology.js';
 import { sceneConditions } from '../model/conditions.js';
 import { speciesFor, treeSeed } from '../model/species.js';
 import { buildTree, drawLeafFall, drawShadow, drawTree } from './tree.js';
-import { drawGroundWetness, drawWeather } from './weatherFx.js';
+import { drawGroundWetness, drawWeather, drawFireflies } from './weatherFx.js';
 import { dayOfYear, stationDate } from '../model/clock.js';
 
 export const HORIZON = HORIZON_Y;
@@ -250,6 +250,26 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     timeMs: animMs,
     light: palette.light,
   });
+
+  // Светлячки: тёплый сезон, тёмная тихая ночь без осадков и тумана.
+  const fireflyNight =
+    known &&
+    season > 0.34 &&
+    season < 0.7 &&
+    conditions.precip.type === 'none' &&
+    conditions.fog < 0.25 &&
+    palette.starOpacity > 0.3 &&
+    (world.weather?.windKmh ?? 0) < 20;
+
+  if (fireflyNight) {
+    drawFireflies(surface, {
+      timeMs: animMs,
+      palette,
+      horizonY,
+      baseY,
+      density: Math.min(1, palette.starOpacity),
+    });
+  }
 
   drawWeather(surface, conditions, {
     timeMs: animMs,
