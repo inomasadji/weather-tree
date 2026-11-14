@@ -89,6 +89,7 @@ const controller = createWeatherController({
   sceneNow,
   isHidden: () => document.hidden,
   getLang: () => lang,
+  kpOverride: Number.isFinite(numberParam(params, 'kp', NaN)) ? numberParam(params, 'kp', 0) : null,
   onPlace: (place) => hud.setPlace(place),
   onStation: (station, meta) => hud.setStation(station, meta),
   onWorld: (world, duration) => setWorld(world, duration),

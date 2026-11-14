@@ -167,6 +167,11 @@ export function scenePalette({
     starOpacity: neutral ? 0 : clamp01((-altitudeDeg - 4) / 10) * (1 - clouds * 0.85),
     /** Иней: холодный белёсый налёт на ветвях и траве. */
     rime: shade(hexColor('#dfeefb'), Math.max(0.35, light)),
+    /** Сияние светит само, но в палитру ночи его надо вписать — отсюда примесь NIGHT. */
+    aurora: {
+      core: mixColor(hexColor('#a7ffd0'), NIGHT, 0.12),
+      glow: mixColor(hexColor('#2fc7a6'), NIGHT, 0.26),
+    },
     /** Дымка у горизонта: теплеет к рассвету/закату и становится толще. */
     haze: mixColor(applyTint(base.haze, tint), hexColor('#ffb277'), hazeWarmth * 0.45),
     hazeSpan: Math.round(2 + 7 * hazeWarmth),

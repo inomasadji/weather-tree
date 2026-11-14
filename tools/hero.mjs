@@ -36,6 +36,14 @@ export const HERO_SCENES = [  {
     atMs: Date.UTC(2026, 9, 5, 13, 20),
     weather: { tempC: 8, code: 61, cloudPct: 92, windKmh: 18, humidity: 90 },
   },
+  {
+    // Сияние: Мурманск, полярная ночь, Kp 7 — главный «вау»-кадр.
+    name: 'hero-aurora',
+    place: { name: 'Мурманск', country: 'Россия', lat: 68.9585, lon: 33.0827, timeZone: 'Europe/Moscow' },
+    atMs: Date.UTC(2026, 11, 21, 18, 0),
+    weather: { tempC: -12, code: 0, cloudPct: 5, windKmh: 3, humidity: 70 },
+    kp: 7,
+  },
 ];
 
 /** Кадры для таблицы в README: имя файла → имя сценария из tools/snapshot.mjs. */
