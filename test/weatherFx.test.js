@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Surface } from '../src/render/surface.js';
-import { drawGroundWetness, drawWeather } from '../src/render/weatherFx.js';
+import { drawFireflies, drawGroundWetness, drawWeather } from '../src/render/weatherFx.js';
 import { sceneConditions } from '../src/model/conditions.js';
 import { scenePalette } from '../src/model/palette.js';
 import { hexColor } from '../src/render/color.js';
@@ -58,4 +58,24 @@ test('туман гасит контраст всей сцены', () => {
 
   assert.notDeepEqual(surface.pixels, before);
   assert.ok(surface.pixels.every((pixel) => pixel !== BLACK));
+});
+
+test('светлячки: детерминированы, гаснут и выключаются нулевой плотностью', () => {
+  const first = new Surface(320, 180);
+  const second = new Surface(320, 180);
+  first.clear(BLACK);
+  second.clear(BLACK);
+
+  const nightPalette = scenePalette({ altitudeDeg: -20, seasonPhase: 0.5 });
+  drawFireflies(first, { timeMs: at, palette: nightPalette, horizonY: 100, baseY: 170 });
+  drawFireflies(second, { timeMs: at, palette: nightPalette, horizonY: 100, baseY: 170 });
+
+  assert.deepEqual(first.pixels, second.pixels);
+  const lit = first.pixels.filter((pixel) => pixel !== BLACK).length;
+  assert.ok(lit > 0 && lit <= 20, `светлячков: ${lit}`);
+
+  const off = new Surface(320, 180);
+  off.clear(BLACK);
+  drawFireflies(off, { timeMs: at, palette: nightPalette, horizonY: 100, baseY: 170, density: 0 });
+  assert.equal(off.pixels.filter((pixel) => pixel !== BLACK).length, 0);
 });

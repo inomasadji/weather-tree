@@ -19,6 +19,7 @@ const SNOW_COLOR = hexColor('#eef6ff');
 const RAIN_COLOR = hexColor('#a9c3dd');
 const FOG_COLOR = hexColor('#cfdde8');
 const FLASH_COLOR = hexColor('#dfe9ff');
+const FIREFLY_COLOR = hexColor('#f4e58a');
 
 /** @param {number} value @param {number} max */
 const wrap = (value, max) => ((value % max) + max) % max;
@@ -69,6 +70,43 @@ function drawPrecipitation(surface, precip, { timeMs, windKmh, light }) {
       const size = !isFar && hash2(index, 5, 17) > 0.85 ? 2 : 1;
       const streak = !isFar && wind > 0.45 && size === 1 ? Math.min(4, 1 + Math.round(wind * 1.6)) : size;
       surface.fillRect(Math.round(x), Math.round(y), streak, size, color);
+    }
+  }
+}
+
+/**
+ * Светлячки: тёплая тихая ночь над лугом. Частиц мало и они гаснут,
+ * иначе ночной кадр превращается в гирлянду.
+ * @param {import('./surface.js').Surface} surface
+ * @param {{timeMs: number, palette: object, horizonY?: number, baseY?: number,
+ *          density?: number}} options
+ */
+export function drawFireflies(surface, { timeMs, palette, horizonY = HORIZON_Y, baseY, density = 1 }) {
+  if (density <= 0) return;
+
+  const seconds = timeMs / 1000;
+  const count = Math.round(7 * density);
+  const top = horizonY + 6;
+  const bottom = Math.max(top + 4, Math.min(surface.height - 2, baseY ?? surface.height - 2));
+  const span = bottom - top;
+  const core = shade(FIREFLY_COLOR, Math.max(0.45, palette.light));
+  const halo = shade(FIREFLY_COLOR, Math.max(0.2, palette.light * 0.65));
+
+  for (let index = 0; index < count; index += 1) {
+    const phase = hash2(index, 1, 83) * Math.PI * 2;
+    // Каждый светлячок мигает в своём темпе и часть времени не виден.
+    const blink = 0.5 + 0.5 * Math.sin(seconds * (0.7 + hash2(index, 4, 83) * 0.6) + phase);
+    if (blink < 0.4) continue;
+
+    const x = Math.round(
+      hash2(index, 2, 83) * (surface.width - 12) + 6 + Math.sin(seconds * 0.55 + phase) * 4,
+    );
+    const y = Math.round(top + hash2(index, 3, 83) * span + Math.cos(seconds * 0.43 + phase * 1.7) * 3);
+
+    surface.pixel(x, y, blink > 0.82 ? core : halo);
+    if (blink > 0.9) {
+      surface.pixel(x + 1, y, halo);
+      surface.pixel(x, y - 1, halo);
     }
   }
 }
