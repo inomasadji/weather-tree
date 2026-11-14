@@ -14,7 +14,7 @@ import { SCENARIOS, scenarioWorld } from '../tools/snapshot.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MAX_APP_BYTES = 250 * 1024;
-const MAX_FILE_LINES = 310;
+const MAX_FILE_LINES = 300;
 
 /** @param {string} dir @returns {Array<string>} */
 function listJsFiles(dir) {
@@ -33,7 +33,7 @@ test('package.json не содержит ни runtime, ни dev-зависимо
   assert.equal(Object.keys(pkg.devDependencies ?? {}).length, 0);
 });
 
-test('бюджет размера статики ≤ 250 КБ и длина файлов в src/ ≤ 310 строк', () => {
+test('бюджет размера статики ≤ 250 КБ и длина файлов в src/ ≤ 300 строк', () => {
   const shellFiles = ['index.html', 'styles.css', 'manifest.webmanifest', 'sw.js', 'icon.svg']
     .map((file) => join(ROOT, file));
   const srcFiles = listJsFiles(join(ROOT, 'src'));
