@@ -23,9 +23,11 @@ const groundLine = (x, horizonY, width) =>
       (Surface.noise(Math.floor(x / 3), 1, 19) - 0.5) * 2.4,
   );
 
-function ridge(surface, { base, amplitude, period, phase, color, snowColor, snowCover, bottom, sunDir }) {
-  const litTone = mixColor(color, snowColor, 0.16);
-  const darkTone = mixColor(color, SHADOW, 0.12);
+function ridge(surface, { base, amplitude, period, phase, color, snowColor, snowCover, bottom, sunDir, hazeColor, hazeMix = 0 }) {
+  // Воздушная перспектива: дальняя гряда сильнее уходит в дымку, ближняя — слабее.
+  const ridgeColor = mixColor(color, hazeColor, hazeMix);
+  const litTone = mixColor(ridgeColor, snowColor, 0.16);
+  const darkTone = mixColor(ridgeColor, SHADOW, 0.12);
 
   for (let x = 0; x < surface.width; x += 1) {
     const y = Math.round(
@@ -39,10 +41,10 @@ function ridge(surface, { base, amplitude, period, phase, color, snowColor, snow
       Math.cos((x + phase) / (period / 3.7)) * ((amplitude * 0.4) / (period / 3.7));
     const facingSun = slope * sunDir < -0.06;
     const inShadow = slope * sunDir > 0.08;
-    const slopeTone = facingSun ? litTone : inShadow ? darkTone : color;
+    const slopeTone = facingSun ? litTone : inShadow ? darkTone : ridgeColor;
 
-    surface.fillRect(x, y, 1, bottom - y, color);
-    if (slopeTone !== color) surface.fillRect(x, y, 1, Math.min(4, bottom - y), slopeTone);
+    surface.fillRect(x, y, 1, bottom - y, ridgeColor);
+    if (slopeTone !== ridgeColor) surface.fillRect(x, y, 1, Math.min(4, bottom - y), slopeTone);
 
     if (snowCover > 0.35 && Surface.noise(x, y, 29) < (snowCover - 0.3) * 0.7) {
       surface.fillRect(x, y, 1, 2, mixColor(slopeTone, snowColor, 0.55));
@@ -82,6 +84,8 @@ export function paintLandscape(surface, {
     snowCover,
     bottom: horizonY + 8,
     sunDir,
+    hazeColor: palette.haze,
+    hazeMix: 0.34,
   });
 
   ridge(surface, {
@@ -94,6 +98,8 @@ export function paintLandscape(surface, {
     snowCover,
     bottom: horizonY + 8,
     sunDir,
+    hazeColor: palette.haze,
+    hazeMix: 0.16,
   });
 
   drawDistantForest(surface, { palette, foliage, horizonY, baseX, seed, lat, snowCover });
@@ -165,6 +171,86 @@ export function paintLandscape(surface, {
     minY: Math.max(0, horizonY - 36),
     maxGroundY: Math.min(height, maxGroundY + 1),
   };
+}
+
+/**
+ * Ближний план: тёмная трава и валуны у нижней кромки кадра. Единственный слой,
+ * который перекрывает дерево, — он и даёт ощущение, что камера стоит в траве.
+ * Рисуется каждый кадр (элементов мало), трава качается вместе с ветром.
+ * @param {import('./surface.js').Surface} surface
+ * @param {{palette: object, windAmp?: number, timeMs?: number, seed?: number,
+ *          baseX?: number, snowCover?: number}} options
+ */
+export function drawNearForeground(surface, {
+  palette,
+  windAmp = 0,
+  timeMs = 0,
+  seed = 0,
+  baseX = -100,
+  snowCover = 0,
+}) {
+  const { width, height } = surface;
+  const seconds = timeMs / 1000;
+  const dark = mixColor(palette.land.dark, hexColor('#05080d'), 0.55);
+  const mid = mixColor(palette.land.near, hexColor('#060b12'), 0.35);
+  const top = snowCover > 0.35 ? mixColor(mid, palette.land.snow, 0.45) : mid;
+
+  // Ближний план рисуется «крупным пикселем»: блок 2×2 читается как расфокус
+  // переднего плана, и глаз ставит его ближе дерева и холмов.
+  const block = width >= 280 ? 2 : 1;
+  const hw = Math.floor(width / block);
+  const hh = Math.floor(height / block);
+  const tuftBaseX = Math.round(baseX / block);
+
+  const put = (x, y, color) => {
+    if (x < 0 || y < 0 || x >= hw || y >= hh) return;
+    surface.fillRect(x * block, y * block, block, block, color);
+  };
+
+  // Неровная полоса у самой кромки: рамка кадра, «объектив в траве».
+  const band = Math.max(2, Math.round(hh * 0.05));
+  for (let x = 0; x < hw; x += 1) {
+    const wobble = Math.round(Surface.noise(Math.floor(x / 2), 5, seed + 11) * band * 1.8);
+    for (let y = Math.max(0, hh - band - wobble); y < hh; y += 1) put(x, y, dark);
+  }
+
+  // Валуны: тёмные, с подсвеченной кромкой — читаются как ближний план.
+  for (let index = 0; index < 2; index += 1) {
+    const rx = 5 + Math.round(hash2(index, 6, seed + 7) * 4);
+    const ry = 2 + Math.round(hash2(index, 7, seed + 7) * 2);
+    const x = Math.round(7 + hash2(index, 8, seed + 7) * (hw - 14));
+    if (Math.abs(x - tuftBaseX) < 9 + rx) continue;
+
+    for (let dy = -ry; dy <= 0; dy += 1) {
+      for (let dx = -rx; dx <= rx; dx += 1) {
+        if ((dx / rx) ** 2 + (dy / ry) ** 2 > 1) continue;
+        put(x + dx, hh - 1 + dy, dy === -ry ? top : dark);
+      }
+    }
+  }
+
+  // Пучки травы: стебли гнутся под ветром и не заслоняют комель.
+  const count = Math.max(6, Math.min(14, Math.round(hw / 17)));
+  for (let index = 0; index < count; index += 1) {
+    const tuftX = Math.round(2 + hash2(index, 1, seed + 3) * (hw - 4));
+    if (Math.abs(tuftX - tuftBaseX) < 8) continue;
+
+    const phase = hash2(index, 4, seed) * Math.PI * 2;
+    const sway = Math.sin(seconds * 1.4 + phase) * windAmp * 1.3;
+    // Часть стеблей тянется выше полосы — так ближний план читается силуэтом.
+    const tall = Math.max(3, Math.round(4 + hash2(index, 2, seed + 5) * hh * 0.09));
+
+    for (let blade = 0; blade < 3; blade += 1) {
+      const bend = sway * (0.6 + blade * 0.3) + (blade - 1) * 2.2;
+      const bladeH = Math.max(2, Math.round(tall * (0.66 + hash2(index * 3 + blade, 9, seed) * 0.5)));
+      const color = blade === 1 ? top : dark;
+
+      for (let step = 0; step < bladeH; step += 1) {
+        const t = step / bladeH;
+        put(Math.round(tuftX + bend * t * t), hh - 1 - step, color);
+      }
+    }
+  }
 }
 
 /** Дымка у горизонта поверх неба и облаков: толще и теплее на низком солнце. */

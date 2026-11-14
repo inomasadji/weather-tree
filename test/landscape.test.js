@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Surface } from '../src/render/surface.js';
-import { paintLandscape } from '../src/render/landscape.js';
+import { drawNearForeground, paintLandscape } from '../src/render/landscape.js';
 import { scenePalette } from '../src/model/palette.js';
 import { foliageState } from '../src/model/phenology.js';
 
@@ -44,4 +44,28 @@ test('paintLandscape учитывает сторону солнца (свето�
   paintLandscape(westSun, { ...opts, sunDir: 1 });
 
   assert.notDeepEqual(eastSun.pixels, westSun.pixels);
+});
+
+test('ближний план: детерминирован, живёт у кромки и качается от ветра', () => {
+  const still = new Surface(320, 180);
+  const again = new Surface(320, 180);
+  const windy = new Surface(320, 180);
+  for (const surface of [still, again, windy]) surface.clear(0);
+
+  const opts = { palette, timeMs: 1_000, seed: 1736741, baseX: 80 };
+  drawNearForeground(still, { ...opts, windAmp: 0.4 });
+  drawNearForeground(again, { ...opts, windAmp: 0.4 });
+  drawNearForeground(windy, { ...opts, timeMs: 1_900, windAmp: 0.4 });
+
+  assert.deepEqual(still.pixels, again.pixels, 'кадр детерминирован');
+  assert.notDeepEqual(still.pixels, windy.pixels, 'трава должна качаться');
+
+  for (let y = 0; y < 150; y += 1) {
+    for (let x = 0; x < 320; x += 1) {
+      assert.equal(still.get(x, y), 0, `ближний план не должен залезать в кадр: (${x},${y})`);
+    }
+  }
+
+  const filled = still.pixels.filter((pixel) => pixel !== 0).length;
+  assert.ok(filled > 200, `пикселей ближнего плана: ${filled}`);
 });
