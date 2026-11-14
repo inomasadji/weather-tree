@@ -135,6 +135,10 @@ export function scenePalette({
   // Гамма: на низком солнце земля темнеет быстрее, чем небо светлеет.
   let light = Math.pow(clamp01((altitudeDeg + 6) / 26), 1.4);
 
+  // Приземная дымка живёт по высоте солнца: на рассвете и закате она теплее
+  // и толще, в полдень — тоньше и бледнее. Иначе закат отличается только небом.
+  const hazeWarmth = clamp01(1 - Math.abs(altitudeDeg - 2) / 9);
+
   const land = LAND[seasonKey(seasonPhase)] ?? LAND.summer;
   const clouds = Math.min(1, Math.max(0, (cloudPct ?? 0) / 100));
 
@@ -163,7 +167,9 @@ export function scenePalette({
     starOpacity: neutral ? 0 : clamp01((-altitudeDeg - 4) / 10) * (1 - clouds * 0.85),
     /** Иней: холодный белёсый налёт на ветвях и траве. */
     rime: shade(hexColor('#dfeefb'), Math.max(0.35, light)),
-    haze: applyTint(base.haze, tint),
+    /** Дымка у горизонта: теплеет к рассвету/закату и становится толще. */
+    haze: mixColor(applyTint(base.haze, tint), hexColor('#ffb277'), hazeWarmth * 0.45),
+    hazeSpan: Math.round(2 + 7 * hazeWarmth),
     land: {
       far: shade(hexColor(land.far), light),
       near: shade(hexColor(land.near), light),
