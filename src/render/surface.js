@@ -79,16 +79,6 @@ export class Surface {
     }
   }
 
-  /** @param {number} x @param {number} y @param {number} length @param {number} color */
-  hLine(x, y, length, color) {
-    this.fillRect(x, y, length, 1, color);
-  }
-
-  /** @param {number} x @param {number} y @param {number} length @param {number} color */
-  vLine(x, y, length, color) {
-    this.fillRect(x, y, 1, length, color);
-  }
-
   /**
    * Линия Брезенхема, без сглаживания.
    * @param {number} x0 @param {number} y0 @param {number} x1 @param {number} y1 @param {number} color
@@ -168,34 +158,6 @@ export class Surface {
 
       for (let col = x0; col < x1; col += 1) {
         this.pixels[line + col] = local > bayerThreshold(col, row) ? to : from;
-      }
-    }
-  }
-
-  /**
-   * Горизонтальный градиент — нужен для закатных отсветов на облаках.
-   * @param {number} x @param {number} y @param {number} w @param {number} h
-   * @param {Array<{at: number, color: number}>} stops
-   * @param {{bands?: number}} [options]
-   */
-  gradientH(x, y, w, h, stops, { bands = 0 } = {}) {
-    if (h <= 0 || w <= 0 || stops.length === 0) return;
-
-    const sorted = [...stops].sort((a, b) => a.at - b.at);
-    const x0 = Math.max(0, Math.trunc(x));
-    const y0 = Math.max(0, Math.trunc(y));
-    const x1 = Math.min(this.width, Math.trunc(x + w));
-    const y1 = Math.min(this.height, Math.trunc(y + h));
-    const levels = bands > 1 ? bands : 0;
-
-    for (let col = x0; col < x1; col += 1) {
-      const t = w > 1 ? (col - x) / (w - 1) : 0;
-      const { from, to, local } = levels
-        ? sampleBanded(sorted, t, levels)
-        : sampleStops(sorted, t);
-
-      for (let row = y0; row < y1; row += 1) {
-        this.pixels[row * this.width + col] = local > bayerThreshold(col, row) ? to : from;
       }
     }
   }

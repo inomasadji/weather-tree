@@ -3,8 +3,8 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 
 import { encodePng } from './png.mjs';
@@ -17,15 +17,11 @@ import { LOGICAL } from '../src/config.js';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const OUT_DIR = join(ROOT, 'snapshots', 'out');
 
-const argv = process.argv.slice(2);
-const scaleArg = argv.indexOf('--scale');
-const SCALE = scaleArg > -1 ? Math.max(1, Number(argv[scaleArg + 1]) || 4) : 4;
-
 const MOSCOW = { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' };
 const MURMANSK = { name: 'Мурманск', country: 'Россия', lat: 68.9585, lon: 33.0827, timeZone: 'Europe/Moscow' };
 const SYDNEY = { name: 'Сидней', country: 'Австралия', lat: -33.8688, lon: 151.2093, timeZone: 'Australia/Sydney' };
 
-/** Сценарии из docs/WEATHER-MAPPING.md (пока без дерева и осадков). */
+/** Сценарии из docs/WEATHER-MAPPING.md. */
 export const SCENARIOS = [
   {
     name: 'm3-july-noon',
@@ -118,33 +114,42 @@ function save(name, surface) {
   return file;
 }
 
-const surface = new Surface(LOGICAL.width, LOGICAL.height);
-mkdirSync(OUT_DIR, { recursive: true });
+function main() {
+  const argv = process.argv.slice(2);
+  const scaleArg = argv.indexOf('--scale');
+  const scale = scaleArg > -1 ? Math.max(1, Number(argv[scaleArg + 1]) || 4) : 4;
 
-for (const scenario of SCENARIOS) {
-  const { world, atMs } = scenarioWorld(scenario);
-  renderScene(surface, world, atMs, atMs);
+  const surface = new Surface(LOGICAL.width, LOGICAL.height);
+  mkdirSync(OUT_DIR, { recursive: true });
 
-  save(scenario.name, surface);
-  save(`${scenario.name}@${SCALE}x`, upscale(surface, SCALE));
-  console.log(`${scenario.name.padEnd(20)} ${hashOf(surface)}`);
-}
+  for (const scenario of SCENARIOS) {
+    const { world, atMs } = scenarioWorld(scenario);
+    renderScene(surface, world, atMs, atMs);
 
-if (argv.includes('--bench')) {
-  const { world, atMs } = scenarioWorld(SCENARIOS[2]);
-  const times = [];
-
-  for (let index = 0; index < 200; index += 1) {
-    const started = performance.now();
-    renderScene(surface, world, atMs, atMs + index * 16);
-    times.push(performance.now() - started);
+    save(scenario.name, surface);
+    save(`${scenario.name}@${scale}x`, upscale(surface, scale));
+    console.log(`${scenario.name.padEnd(20)} ${hashOf(surface)}`);
   }
 
-  times.sort((a, b) => a - b);
-  console.log(
-    `рендер x200: медиана ${times[100].toFixed(2)} мс, ` +
-      `p95 ${times[190].toFixed(2)} мс, максимум ${times[199].toFixed(2)} мс`,
-  );
+  if (argv.includes('--bench')) {
+    const { world, atMs } = scenarioWorld(SCENARIOS[2]);
+    const times = [];
+
+    for (let index = 0; index < 200; index += 1) {
+      const started = performance.now();
+      renderScene(surface, world, atMs, atMs + index * 16);
+      times.push(performance.now() - started);
+    }
+
+    times.sort((a, b) => a - b);
+    console.log(
+      `рендер x200: медиана ${times[100].toFixed(2)} мс, ` +
+        `p95 ${times[190].toFixed(2)} мс, максимум ${times[199].toFixed(2)} мс`,
+    );
+  }
+
+  console.log(`картинки: ${OUT_DIR}`);
 }
 
-console.log(`картинки: ${OUT_DIR}`);
+const isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (isMain) main();
