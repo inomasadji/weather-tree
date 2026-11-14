@@ -10,6 +10,8 @@ import { HORIZON_Y } from '../config.js';
 const BINS = 64;
 
 const LAYER_SPECS = [
+  // Самая высокая пелена: тонкая, почти неподвижная — верхний план параллакса.
+  { seed: 7, y: 0, height: 24, scaleX: 54, scaleY: 12, octaves: 2, share: 0.06, minCoverage: 0.3, speed: 0.16, offset: 0.05 },
   // Высокая пелена: мелкая, медленная, самая дальняя.
   { seed: 11, y: 0, height: 34, scaleX: 28, scaleY: 16, octaves: 2, share: 0.2, minCoverage: 0.15, speed: 0.35, offset: 0.2 },
   // Средний слой.
@@ -76,7 +78,9 @@ export function quantileThreshold(layer, fraction) {
  * Рисует облака. Порог зависит от облачности: 0 % — почти ничего, 100 % — плотный слой.
  * @param {import('./surface.js').Surface} surface
  * @param {Array<object>} layers
- * @param {{coverage: number, windKmh: number, timeMs: number, palette: object, sunAltitudeDeg: number, fog?: number, horizonY?: number}} options
+ * @param {{coverage: number, windKmh: number, timeMs: number, palette: object,
+ *          sunAltitudeDeg: number, fog?: number, horizonY?: number,
+ *          shiftX?: number, shiftY?: number}} options
  */
 export function drawClouds(surface, layers, {
   coverage,
@@ -86,6 +90,8 @@ export function drawClouds(surface, layers, {
   sunAltitudeDeg,
   fog = 0,
   horizonY = HORIZON_Y,
+  shiftX = 0,
+  shiftY = 0,
 }) {
   if (coverage < 0.02) return;
 
@@ -109,8 +115,8 @@ export function drawClouds(surface, layers, {
     const baseY = Math.round(layer.y * skyScale);
 
     for (let row = 0; row < layer.height; row += 1) {
-      const screenY = baseY + row;
-      if (screenY >= surface.height) break;
+      const screenY = baseY + row + shiftY;
+      if (screenY < 0 || screenY >= surface.height) continue;
 
       // Облако светится тем небом, на котором лежит: у горизонта — закатное,
       // в зените — холодное. Иначе сумрак получается ровно-фиолетовым.
@@ -129,6 +135,8 @@ export function drawClouds(surface, layers, {
         if (edgeFade < 2 && hash2(x, row, 53) < (2 - edgeFade) * 0.45) continue;
 
         const index = x + shift >= layer.width ? x + shift - layer.width : x + shift;
+        const screenX = x + shiftX;
+        if (screenX < 0 || screenX >= surface.width) continue;
 
         if (overcast) {
           // Сплошной слой: дыры не нужны, но нужна фактура — два тона по рельефу.
@@ -137,7 +145,7 @@ export function drawClouds(surface, layers, {
           // Нижняя часть слоя темнее — у оверкаста есть вертикальный профиль.
           const shadeT = Math.max(0, row / layer.height - 0.55) * 1.4;
           if (shadeT > 0) color = mixColor(color, dark, Math.min(1, shadeT));
-          surface.pixel(x, screenY, color);
+          surface.pixel(screenX, screenY, color);
           continue;
         }
 
@@ -161,7 +169,7 @@ export function drawClouds(surface, layers, {
           color = rim;
         }
 
-        surface.pixel(x, screenY, color);
+        surface.pixel(screenX, screenY, color);
       }
     }
   }

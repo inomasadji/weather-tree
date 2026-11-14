@@ -188,6 +188,8 @@ export function drawNearForeground(surface, {
   seed = 0,
   baseX = -100,
   snowCover = 0,
+  viewX = 0,
+  viewY = 0,
 }) {
   const { width, height } = surface;
   const seconds = timeMs / 1000;
@@ -201,6 +203,9 @@ export function drawNearForeground(surface, {
   const hw = Math.floor(width / block);
   const hh = Math.floor(height / block);
   const tuftBaseX = Math.round(baseX / block);
+  // Параллакс ближнего плана: трава едет по движению камеры, сильнее чем небо.
+  const shiftX = Math.round(viewX / block);
+  const shiftY = Math.round(viewY / block);
 
   const put = (x, y, color) => {
     if (x < 0 || y < 0 || x >= hw || y >= hh) return;
@@ -218,13 +223,13 @@ export function drawNearForeground(surface, {
   for (let index = 0; index < 2; index += 1) {
     const rx = 5 + Math.round(hash2(index, 6, seed + 7) * 4);
     const ry = 2 + Math.round(hash2(index, 7, seed + 7) * 2);
-    const x = Math.round(7 + hash2(index, 8, seed + 7) * (hw - 14));
+    const x = Math.round(7 + hash2(index, 8, seed + 7) * (hw - 14)) + shiftX;
     if (Math.abs(x - tuftBaseX) < 9 + rx) continue;
 
     for (let dy = -ry; dy <= 0; dy += 1) {
       for (let dx = -rx; dx <= rx; dx += 1) {
         if ((dx / rx) ** 2 + (dy / ry) ** 2 > 1) continue;
-        put(x + dx, hh - 1 + dy, dy === -ry ? top : dark);
+        put(x + dx, hh - 1 + dy - shiftY, dy === -ry ? top : dark);
       }
     }
   }
@@ -232,7 +237,7 @@ export function drawNearForeground(surface, {
   // Пучки травы: стебли гнутся под ветром и не заслоняют комель.
   const count = Math.max(6, Math.min(14, Math.round(hw / 17)));
   for (let index = 0; index < count; index += 1) {
-    const tuftX = Math.round(2 + hash2(index, 1, seed + 3) * (hw - 4));
+    const tuftX = Math.round(2 + hash2(index, 1, seed + 3) * (hw - 4)) + shiftX;
     if (Math.abs(tuftX - tuftBaseX) < 8) continue;
 
     const phase = hash2(index, 4, seed) * Math.PI * 2;
