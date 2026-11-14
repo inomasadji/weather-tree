@@ -104,15 +104,45 @@ const PREPARED = KEYFRAMES.map((frame) => ({
   tones: frame.tones.map((hex) => hexColor(hex)),
 }));
 
+const CONIFER_TONES = ['#4c8549', '#2f5d34', '#1d3c23'].map((hex) => hexColor(hex));
+const TROPICAL_TONES = ['#74bf4b', '#499338', '#2a5f26'].map((hex) => hexColor(hex));
+const BIRCH_AUTUMN = ['#f2cb46', '#d99b26', '#9e661c'].map((hex) => hexColor(hex));
+
 const lerp = (a, b, t) => a + (b - a) * t;
 
 /**
  * @param {number} seasonPhase 0…1
+ * @param {{tempC?: number, windKmh?: number, species?: string}} [options]
  * @returns {{coverage: number, blossom: number, fruit: number, litter: number,
- *            tones: number[], stage: string}}
+ *            tones: number[], stage: string, species: string}}
  */
-export function foliageState(seasonPhase, { tempC = 8, windKmh = 0 } = {}) {
+export function foliageState(seasonPhase, { tempC = 8, windKmh = 0, species = 'oak' } = {}) {
   const phase = ((seasonPhase % 1) + 1) % 1;
+
+  if (species === 'conifer') {
+    return {
+      coverage: 0.94,
+      blossom: 0,
+      fruit: 0,
+      litter: 0,
+      tones: CONIFER_TONES,
+      stage: 'evergreen',
+      species,
+    };
+  }
+
+  if (species === 'tropical') {
+    const fruit = phase > 0.35 && phase < 0.75 ? 0.14 : 0.04;
+    return {
+      coverage: 0.92,
+      blossom: phase > 0.18 && phase < 0.35 ? 0.25 : 0,
+      fruit,
+      litter: 0,
+      tones: TROPICAL_TONES,
+      stage: 'evergreen',
+      species,
+    };
+  }
 
   let from = PREPARED[0];
   let to = PREPARED[1];
@@ -131,8 +161,8 @@ export function foliageState(seasonPhase, { tempC = 8, windKmh = 0 } = {}) {
   const t = Math.min(1, Math.max(0, (phase - from.at) / span));
 
   let coverage = lerp(from.coverage, to.coverage, t);
-  const blossom = lerp(from.blossom, to.blossom, t);
-  const fruit = lerp(from.fruit, to.fruit, t);
+  const blossom = species === 'birch' ? 0 : lerp(from.blossom, to.blossom, t);
+  const fruit = species === 'birch' ? 0 : lerp(from.fruit, to.fruit, t);
   const litter = lerp(from.litter, to.litter, t);
 
   // Ветер срывает листву быстрее, ранние заморозки — тем более.
@@ -142,9 +172,13 @@ export function foliageState(seasonPhase, { tempC = 8, windKmh = 0 } = {}) {
     coverage = Math.max(0, coverage - windLoss - frostLoss);
   }
 
-  const tones = from.tones.map((color, index) => mixColor(color, to.tones[index], t));
+  let tones = from.tones.map((color, index) => mixColor(color, to.tones[index], t));
+  if (species === 'birch' && phase > 0.76 && phase < 0.96) {
+    const goldWeight = Math.sin(((phase - 0.76) / 0.2) * Math.PI);
+    tones = tones.map((color, index) => mixColor(color, BIRCH_AUTUMN[index], goldWeight * 0.8));
+  }
 
-  return { coverage, blossom, fruit, litter, tones, stage: stageOf(coverage, blossom) };
+  return { coverage, blossom, fruit, litter, tones, stage: stageOf(coverage, blossom), species };
 }
 
 /**

@@ -5,6 +5,8 @@ import { foliageState } from './phenology.js';
 import { sceneConditions } from './conditions.js';
 import { describeWeather } from './weather.js';
 import { dict } from './i18n.js';
+import { speciesFor } from './species.js';
+import { treeSeed } from './species.js';
 
 /**
  * @param {object} world WorldState
@@ -18,9 +20,15 @@ export function describeScene(world, lang = 'ru') {
 
   const conditions = sceneConditions(world);
   const season = world.derived?.season ?? 0.5;
+  const lat = world.place?.lat;
+  const lon = world.place?.lon;
+  const species = Number.isFinite(lat) && Number.isFinite(lon)
+    ? speciesFor(lat, treeSeed(lat, lon))
+    : 'oak';
   const foliage = foliageState(season, {
     tempC: world.weather.tempC,
     windKmh: world.weather.windKmh,
+    species,
   });
 
   const parts = [];
@@ -32,7 +40,10 @@ export function describeScene(world, lang = 'ru') {
   if (conditions.fog > 0.4) parts.push(d.fog);
   if (conditions.storm) parts.push(d.storm);
 
-  if (foliage.stage === 'bare') parts.push(d.bare);
+  if (Number.isFinite(lat) && d.species[species]) parts.push(d.species[species]);
+
+  if (foliage.stage === 'evergreen') parts.push(d.evergreen);
+  else if (foliage.stage === 'bare') parts.push(d.bare);
   else if (foliage.stage === 'blossom') parts.push(d.blossom);
   else if (foliage.stage === 'young') parts.push(d.young);
   else parts.push(d.leafy);

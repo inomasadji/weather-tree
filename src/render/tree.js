@@ -11,7 +11,8 @@ export { treeSeed, buildTree, drawShadow, drawLeafFall };
  * @param {object} tree
  * @param {{
  *   foliage: object, timeMs: number, windAmp: number, windDirDeg: number,
- *   light: number, snowLoad: number, snowColor: number, wetness: number
+ *   light: number, snowLoad: number, snowColor: number, wetness: number,
+ *   sunDir?: number
  * }} options
  */
 export function drawTree(surface, tree, {
@@ -23,6 +24,7 @@ export function drawTree(surface, tree, {
   snowLoad,
   snowColor,
   wetness,
+  sunDir = 1,
 }) {
   const radians = ((windDirDeg ?? 0) * Math.PI) / 180;
   const lean = -Math.sin(radians) * windAmp * 6;
@@ -39,5 +41,5 @@ export function drawTree(surface, tree, {
   };
 
   drawSkeleton(surface, tree, { sway, light, snowLoad, snowColor, wetness });
-  drawFoliage(surface, tree, { foliage, seconds, windAmp, light, snowLoad, snowColor, sway });
+  drawFoliage(surface, tree, { foliage, seconds, windAmp, light, snowLoad, snowColor, sway, sunDir });
 }
