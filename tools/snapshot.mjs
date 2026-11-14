@@ -163,7 +163,7 @@ export function scenarioWorld(scenario) {
   };
 }
 
-function upscale(source, factor) {
+export function upscaleSurface(source, factor) {
   const result = new Surface(source.width * factor, source.height * factor);
 
   for (let y = 0; y < result.height; y += 1) {
@@ -176,6 +176,8 @@ function upscale(source, factor) {
 
   return result;
 }
+
+const upscale = upscaleSurface;
 
 export function hashOf(surface) {
   return createHash('sha256').update(surface.data).digest('hex').slice(0, 16);

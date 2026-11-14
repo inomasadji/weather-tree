@@ -7,7 +7,7 @@ import { Surface } from './surface.js';
 import { drawSky, drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
-import { drawHorizonHaze, paintLandscape } from './landscape.js';
+import { drawHorizonHaze, drawNearForeground, paintLandscape } from './landscape.js';
 import { scenePalette } from '../model/palette.js';
 import { sunPosition, moonPosition, moonPhase } from '../model/sun.js';
 import { seasonPhase } from '../model/season.js';
@@ -249,6 +249,16 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     windKmh: world.weather?.windKmh ?? 0,
     timeMs: animMs,
     light: palette.light,
+  });
+
+  // Ближний план: тёмная трава и валуны у кромки — перекрывают дерево и дают глубину.
+  drawNearForeground(surface, {
+    palette,
+    windAmp: conditions.windAmp,
+    timeMs: animMs,
+    seed,
+    baseX,
+    snowCover: conditions.snowCover,
   });
 
   // Светлячки: тёплый сезон, тёмная тихая ночь без осадков и тумана.
