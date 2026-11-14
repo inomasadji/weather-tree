@@ -11,15 +11,15 @@ import { LOGICAL } from '../src/config.js';
 import { demoStation } from '../src/state/demo.js';
 import { buildWorldState } from '../src/state/world.js';
 import { scenePalette } from '../src/model/palette.js';
-import { SCENARIOS, scenarioWorld, hashOf } from '../tools/snapshot.mjs';
+import {
+  SCENARIOS,
+  diffSurfaces,
+  readGolden,
+  renderScenario,
+  saveDiff,
+} from '../tools/snapshot.mjs';
 
 const MOSCOW = { name: 'Москва', country: 'Россия', lat: 55.7558, lon: 37.6173, timeZone: 'Europe/Moscow' };
-
-const GOLDEN_HASHES = {
-  'm3-july-noon': '8a9e9e9a4bc25d98',
-  'm3-january-night': '8fe9a3a0e88cbf3c',
-  'm5-storm': '0029d696e6763109',
-};
 
 const SUMMER_NOON = Date.UTC(2026, 6, 9, 9, 0);
 const WINTER_NIGHT = Date.UTC(2026, 0, 14, 16, 15);
@@ -41,16 +41,32 @@ test('сцена рендерится детерминированно', () => {
   assert.deepEqual(first.data, second.data);
 });
 
-for (const [name, expected] of Object.entries(GOLDEN_HASHES)) {
-  test(`golden-кадр ${name} не изменился`, () => {
-    const scenario = SCENARIOS.find((item) => item.name === name);
-    assert.ok(scenario, `не найден сценарий ${name}`);
+test('эталоны golden-кадров есть для всех сценариев', () => {
+  const missing = SCENARIOS.filter((scenario) => !readGolden(scenario.name)).map((scenario) => scenario.name);
+  assert.deepEqual(
+    missing,
+    [],
+    `нет эталонов: ${missing.join(', ')} — создайте их командой npm run snapshot -- --update`,
+  );
+});
 
-    const { world, atMs } = scenarioWorld(scenario);
-    const surface = new Surface(LOGICAL.width, LOGICAL.height);
+for (const scenario of SCENARIOS) {
+  test(`golden-кадр ${scenario.name} совпадает с эталоном`, () => {
+    const expected = readGolden(scenario.name);
+    assert.ok(expected, `нет эталона ${scenario.name} — npm run snapshot -- --update`);
 
-    renderScene(surface, world, atMs, atMs);
-    assert.equal(hashOf(surface), expected);
+    const actual = renderScenario(scenario);
+    const diff = diffSurfaces(actual, expected);
+    if (diff.changed > 0) saveDiff(scenario.name, diff.map);
+
+    assert.equal(
+      diff.changed,
+      0,
+      `${scenario.name}: ${diff.changed} из ${diff.total} пикселей ` +
+        `(${(diff.ratio * 100).toFixed(2)}%), ` +
+        `область x${diff.box?.x0}..${diff.box?.x1} y${diff.box?.y0}..${diff.box?.y1}, ` +
+        `карта различий: snapshots/out/diff-${scenario.name}.png`,
+    );
   });
 }
 
