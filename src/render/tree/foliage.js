@@ -8,6 +8,8 @@ import { hash2 } from '../noise.js';
 
 /**
  * Рваный эллиптический пучок листвы со светом со стороны солнца.
+ * Форма силуэта берётся из фазы кластера: круглая, зубчатая («фестоны») или
+ * плакучая с вытянутой нижней половиной — чтобы крона не выглядела штампом.
  */
 function drawLeafCluster(surface, cluster, offsetX, foliage, light, sunDir, isShadow = false) {
   const scale = 0.48 + foliage.coverage * 0.58;
@@ -17,16 +19,25 @@ function drawLeafCluster(surface, cluster, offsetX, foliage, light, sunDir, isSh
   const cy = Math.round(cluster.y + (isShadow ? 3 : 0));
   const tones = foliage.tones.map((color) => shade(color, Math.max(0.12, light)));
   const densityCutoff = foliage.species === 'birch' ? 0.72 : 0.84;
+  const shape = Math.floor((cluster.phase ?? 0) / 2.094) % 3;
 
   for (let dy = -ry; dy <= ry; dy += 1) {
+    // Плакучая форма: нижняя половина тянется вниз, как у ивы.
+    const dyShape = shape === 2 && dy > 0 ? dy / 1.3 : dy;
+
     for (let dx = -rx; dx <= rx; dx += 1) {
-      const dist = Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2);
+      const dist = Math.sqrt((dx / rx) ** 2 + (dyShape / ry) ** 2);
       if (dist > 1) continue;
 
       const x = cx + dx;
-      const y = cy + dy;
+      const y = cy + Math.round(dyShape);
       const grain = Surface.noise(x, y, 5);
-      if (dist > densityCutoff && grain < (dist - densityCutoff) * 4.5) continue;
+      // Зубчатый край: фестоны идут волной по периметру.
+      const cutoff =
+        shape === 1
+          ? densityCutoff + Math.sin((dx / rx) * Math.PI * 3 + (cluster.phase ?? 0)) * 0.06
+          : densityCutoff;
+      if (dist > cutoff && grain < (dist - cutoff) * 4.5) continue;
       if (foliage.species === 'birch' && grain < 0.14) continue;
 
       if (isShadow) {
@@ -246,12 +257,20 @@ export function drawLeafFall(surface, tree, { foliage, windKmh, timeMs, light })
     const seedY = crown.minY + hash2(index, 2, 37) * (crown.maxY - crown.minY);
     const fall = 11 + hash2(index, 3, 37) * 15;
     const life = 4 + hash2(index, 4, 37) * 4;
-    const age = (seconds * (0.6 + windKmh / 60) + index * 1.37) % life;
+    // План глубины: дальние листья мельче, медленнее и приглушённее.
+    const depth = hash2(index, 5, 37);
+    const far = depth < 0.35;
+    const near = depth > 0.72;
+    const age = (seconds * (0.6 + windKmh / 60) * (far ? 0.72 : near ? 1.18 : 1) + index * 1.37) % life;
 
-    const x = seedX + age * (1.2 + windKmh * 0.22) + Math.sin(age * 2.4 + index) * 3;
-    const y = seedY + age * fall;
+    const drift = (1.2 + windKmh * 0.22) * (far ? 0.75 : near ? 1.25 : 1);
+    const x = seedX + age * drift + Math.sin(age * 2.4 + index) * 3;
+    const y = seedY + age * fall * (far ? 0.78 : near ? 1.15 : 1);
 
     if (y < crown.maxY - 6 || y > tree.baseY - 2 || x < 0 || x > surface.width) continue;
-    surface.pixel(Math.round(x), Math.round(y), shade(foliage.tones[index % 3], Math.max(0.25, light)));
+
+    const tone = shade(foliage.tones[index % 3], Math.max(0.25, light * (far ? 0.72 : 1)));
+    if (near) surface.fillRect(Math.round(x), Math.round(y), 2, 1, tone);
+    else surface.pixel(Math.round(x), Math.round(y), tone);
   }
 }
