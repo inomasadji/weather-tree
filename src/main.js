@@ -1,6 +1,5 @@
 // Точка входа: связывает контроллер данных, рендер-цикл, HUD и диалог выбора города.
 
-import { LOGICAL } from './config.js';
 import { createWeatherController } from './state/controller.js';
 import { describeScene } from './model/describe.js';
 import { Surface } from './render/surface.js';
@@ -26,11 +25,18 @@ function numberParam(params, name, fallback) {
 const canvas = document.getElementById('scene');
 const stageHolder = document.getElementById('stage');
 const hud = createHud(document);
-const stage = createStage(canvas, stageHolder);
+
+let dirty = true;
+const stage = createStage(canvas, stageHolder, {
+  onResize: () => {
+    dirty = true;
+  },
+});
 
 // Пиксельный буфер живёт отдельно от DOM: его можно отрендерить и в Node.
-const surface = new Surface(LOGICAL.width, LOGICAL.height);
-const scratch = new Surface(LOGICAL.width, LOGICAL.height);
+const initialSize = stage.size();
+let surface = new Surface(initialSize.width, initialSize.height);
+let scratch = new Surface(initialSize.width, initialSize.height);
 stage.paintPlaceholder();
 
 /**
@@ -64,9 +70,11 @@ function setWorld(world, duration = 2500) {
   if (!currentWorld || duration <= 0 || reducedMotion) {
     currentWorld = world;
     transition = null;
+    dirty = true;
     return;
   }
   transition = { from: currentWorld, to: world, startedAt: performance.now(), duration };
+  dirty = true;
 }
 
 const controller = createWeatherController({
@@ -115,7 +123,14 @@ function frame(now) {
     }
   }
 
-  if (currentWorld && framePacer.shouldDraw(now)) {
+  if (currentWorld && (dirty || framePacer.shouldDraw(now))) {
+    dirty = false;
+    const { width, height } = stage.size();
+    if (surface.width !== width || surface.height !== height) {
+      surface = new Surface(width, height);
+      scratch = new Surface(width, height);
+    }
+
     const drawn = frameGuard.attempt(() => {
       const animMs = reducedMotion ? 0 : now;
 

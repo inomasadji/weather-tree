@@ -9,15 +9,16 @@ import { bayerThreshold } from './surface.js';
  * @param {import('./surface.js').Surface} surface
  * @param {number} hourAngleDeg −180…180
  * @param {number} altitudeDeg
+ * @param {number} [horizonY]
  * @returns {{x: number, y: number}}
  */
-export function celestialPoint(surface, hourAngleDeg, altitudeDeg) {
+export function celestialPoint(surface, hourAngleDeg, altitudeDeg, horizonY = HORIZON_Y) {
   // Часовой угол ограничиваем: иначе на закате светило уезжает за кадр.
   const angle = Math.max(-110, Math.min(110, hourAngleDeg));
 
   return {
     x: Math.round(surface.width / 2 + (angle / 110) * (surface.width * 0.44)),
-    y: Math.round(HORIZON_Y - (altitudeDeg / 90) * (HORIZON_Y - 12)),
+    y: Math.round(horizonY - (altitudeDeg / 90) * (horizonY - 12)),
   };
 }
 

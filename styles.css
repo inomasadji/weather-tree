@@ -50,32 +50,20 @@ body {
 /* ---------- Каркас ---------- */
 
 .app {
-  display: grid;
-  grid-template-rows: 1fr auto;
-  min-height: 100dvh;
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .stage {
   position: relative;
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
   overflow: hidden;
-  min-height: 0;
-  background:
-    radial-gradient(120% 90% at 50% 0%, #101a35 0%, #080d1e 60%, #05080f 100%);
-}
-
-.stage::after {
-  /* Тонкая сетка, чтобы пустая сцена не выглядела «сломанной». */
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(143, 182, 217, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(143, 182, 217, 0.05) 1px, transparent 1px);
-  background-size: 16px 16px;
-  mask-image: radial-gradient(80% 80% at 50% 50%, #000 30%, transparent 100%);
+  background: var(--stage);
 }
 
 #scene {
@@ -84,7 +72,6 @@ body {
   display: block;
   image-rendering: pixelated;
   background: var(--stage);
-  box-shadow: 0 0 0 3px var(--line-soft), 0 18px 40px rgba(0, 0, 0, 0.45);
 }
 
 /* ---------- HUD ---------- */
@@ -203,16 +190,23 @@ body {
   color: var(--warm);
 }
 
-/* ---------- Нижняя панель ---------- */
+/* ---------- Окошко места и статуса ---------- */
 
 .bar {
+  position: absolute;
+  z-index: 2;
+  bottom: 16px;
+  right: 16px;
+  max-width: calc(100% - 32px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  background: #05080f;
-  border-top: 3px solid var(--line);
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
 }
 
 .place {
@@ -435,6 +429,10 @@ body {
   }
 
   .bar {
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    max-width: none;
     padding: 8px 12px;
   }
 }
@@ -445,6 +443,12 @@ body {
     left: 6px;
     padding: 8px 10px;
     width: min(20rem, calc(100% - 12px));
+  }
+
+  .bar {
+    bottom: 6px;
+    right: 6px;
+    padding: 6px 10px;
   }
 
   .clock {

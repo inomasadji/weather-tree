@@ -96,11 +96,12 @@ function drawFog(surface, fog, light) {
  * @param {import('./surface.js').Surface} surface
  * @param {number} slot
  * @param {number} color
+ * @param {number} horizonY
  */
-function drawBolt(surface, slot, color) {
+function drawBolt(surface, slot, color, horizonY) {
   let x = 12 + hash2(slot, 1, 29) * (surface.width - 24);
   let y = 6;
-  const endY = HORIZON_Y + 4;
+  const endY = horizonY + 4;
 
   while (y < endY) {
     const stepY = 7 + hash2(slot, Math.round(y), 33) * 9;
@@ -131,7 +132,7 @@ function drawBolt(surface, slot, color) {
  * @param {number} timeMs
  * @param {object} palette
  */
-function drawFlash(surface, timeMs, palette) {
+function drawFlash(surface, timeMs, palette, horizonY) {
   const slot = Math.floor(timeMs / 1400);
   const chance = hash2(slot, 9, 5);
 
@@ -144,7 +145,7 @@ function drawFlash(surface, timeMs, palette) {
 
   // Сам разряд виден только в первые кадры — как настоящая молния.
   if (local < 0.12) {
-    drawBolt(surface, slot, mixColor(palette.cloudRim, hexColor('#ffffff'), 0.75));
+    drawBolt(surface, slot, mixColor(palette.cloudRim, hexColor('#ffffff'), 0.75), horizonY);
   }
   const color = mixColor(palette.cloudLight, FLASH_COLOR, 0.7);
 
@@ -162,12 +163,12 @@ function drawFlash(surface, timeMs, palette) {
  * @param {object} conditions результат sceneConditions
  * @param {{palette: object, timeMs: number}} options
  */
-export function drawGroundWetness(surface, conditions, { palette, timeMs }) {
+export function drawGroundWetness(surface, conditions, { palette, timeMs, horizonY = HORIZON_Y }) {
   const wetness = conditions.wetness;
   if (wetness < 0.05) return;
 
   const width = surface.width;
-  const top = HORIZON_Y;
+  const top = horizonY;
   const rim = shade(palette.cloudRim, Math.max(0.3, palette.light));
 
   // Мокрый грунт темнее сухого.
@@ -186,8 +187,9 @@ export function drawGroundWetness(surface, conditions, { palette, timeMs }) {
     0.15,
   );
 
+  const puddleStep = Math.max(24, (width - 72) / 4);
   for (let index = 0; index < 5; index += 1) {
-    const cx = Math.round(18 + index * 62 + hash2(index, 1, 61) * 26);
+    const cx = Math.round(18 + index * puddleStep + hash2(index, 1, 61) * 26);
     const cy = Math.round(top + 8 + hash2(index, 2, 61) * 16);
     const rx = Math.round(7 + hash2(index, 3, 61) * 10);
     const ry = Math.round(2 + hash2(index, 4, 61) * 2);
@@ -203,7 +205,8 @@ export function drawGroundWetness(surface, conditions, { palette, timeMs }) {
 
   // Брызги: короткие вертикальные штрихи у земли.
   if (conditions.precip.type === 'rain' || conditions.precip.type === 'drizzle') {
-    for (let index = 0; index < 22; index += 1) {
+    const splashCount = Math.max(8, Math.round(22 * (width / 320)));
+    for (let index = 0; index < splashCount; index += 1) {
       const x = Math.round(hash2(index, 5, 67) * width);
       const baseY = Math.round(top + 2 + hash2(index, 6, 67) * 10);
       const phase = (timeMs / 420 + hash2(index, 7, 67)) % 1;
@@ -219,13 +222,13 @@ export function drawGroundWetness(surface, conditions, { palette, timeMs }) {
  * Все погодные эффекты поверх сцены.
  * @param {import('./surface.js').Surface} surface
  * @param {object} conditions результат sceneConditions
- * @param {{timeMs: number, windKmh: number, palette: object}} options
+ * @param {{timeMs: number, windKmh: number, palette: object, horizonY?: number}} options
  */
-export function drawWeather(surface, conditions, { timeMs, windKmh, palette }) {
+export function drawWeather(surface, conditions, { timeMs, windKmh, palette, horizonY = HORIZON_Y }) {
   const light = palette?.light ?? 1;
 
   drawPrecipitation(surface, conditions.precip, { timeMs, windKmh, light });
   drawFog(surface, conditions.fog, light);
 
-  if (conditions.storm) drawFlash(surface, timeMs, palette);
+  if (conditions.storm) drawFlash(surface, timeMs, palette, horizonY);
 }

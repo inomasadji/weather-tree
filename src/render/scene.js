@@ -2,8 +2,8 @@
 // Тяжёлые статичные слои (градиент неба, земля с холмами) кэшируются по ключу
 // палитры: в кадре остаются только копии буферов и анимируемые слои.
 
-import { HORIZON_Y } from '../config.js';
-import { Surface } from './surface.js';
+import { HORIZON_Y, LOGICAL } from '../config.js';
+import { Surface, bayerThreshold } from './surface.js';
 import { drawSky, drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
@@ -15,12 +15,8 @@ import { sceneConditions } from '../model/conditions.js';
 import { buildTree, drawLeafFall, drawShadow, drawTree, treeSeed } from './tree.js';
 import { drawGroundWetness, drawWeather } from './weatherFx.js';
 import { dayOfYear, stationDate } from '../model/clock.js';
-import { bayerThreshold } from './surface.js';
 
 export const HORIZON = HORIZON_Y;
-
-/** С этой строки начинается земля: там слой всегда непрозрачный. */
-const GROUND_TOP = HORIZON;
 
 const skyCache = new Map();
 const groundCache = new Map();
@@ -28,7 +24,23 @@ const paletteCache = new Map();
 
 let cloudLayers = null;
 let cloudLayersWidth = 0;
-let treeCache = { seed: null, tree: null };
+let treeCache = { key: null, tree: null };
+
+/** @param {number} width @param {number} height */
+function sceneLayout(width, height) {
+  const horizonY = height === LOGICAL.height
+    ? HORIZON_Y
+    : Math.round(height * (HORIZON_Y / LOGICAL.height));
+  const baseX = width === LOGICAL.width
+    ? 80
+    : width < 260
+      ? Math.round(width * 0.5)
+      : Math.round(width * 0.25);
+  const baseY = height === LOGICAL.height
+    ? height - 1
+    : Math.min(height - 26, horizonY + Math.max(58, Math.round((height - horizonY) * 0.68)));
+  return { horizonY, baseX, baseY };
+}
 
 /**
  * Палитра считается не каждый кадр: ключ округляет высоту солнца и сезон.
@@ -78,14 +90,14 @@ function ridge(surface, { base, amplitude, period, phase, color, bottom }) {
  * @param {Surface} surface
  * @param {object} palette
  */
-function paintGround(surface, palette, snowCover) {
+function paintGround(surface, palette, snowCover, horizonY) {
   const { width, height } = surface;
   const { land } = palette;
 
-  surface.fillRect(0, HORIZON, width, height - HORIZON, land.ground);
+  surface.fillRect(0, horizonY, width, height - horizonY, land.ground);
 
   // Текстура: детерминированный шум вместо Math.random().
-  for (let y = HORIZON + 2; y < height; y += 1) {
+  for (let y = horizonY + 2; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const noise = Surface.noise(x, y, 7);
       if (noise > 0.955) surface.pixel(x, y, land.light);
@@ -95,7 +107,7 @@ function paintGround(surface, palette, snowCover) {
 
   // Снежный покров: от проплешин до сплошного наста.
   if (snowCover > 0.02) {
-    for (let y = HORIZON; y < height; y += 1) {
+    for (let y = horizonY; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const noise = Surface.noise(x, y, 41);
         if (noise < snowCover) {
@@ -106,10 +118,11 @@ function paintGround(surface, palette, snowCover) {
   }
 
   // Травинки у горизонта — чтобы край не был линейкой.
-  for (let index = 0; index < 26; index += 1) {
+  const blades = Math.max(12, Math.round(26 * (width / LOGICAL.width)));
+  for (let index = 0; index < blades; index += 1) {
     const x = Math.round(Surface.noise(index, 1, 31) * width);
     const bladeHeight = 1 + Math.round(Surface.noise(index, 2, 31) * 2);
-    surface.fillRect(x, HORIZON - bladeHeight, 1, bladeHeight, snowCover > 0.6 ? land.snow : land.light);
+    surface.fillRect(x, horizonY - bladeHeight, 1, bladeHeight, snowCover > 0.6 ? land.snow : land.light);
   }
 }
 
@@ -118,14 +131,15 @@ function paintGround(surface, palette, snowCover) {
  * @param {number} height
  * @param {object} palette
  * @param {string} key
+ * @param {number} horizonY
  * @returns {Surface}
  */
-function getSkyLayer(width, height, palette, key) {
+function getSkyLayer(width, height, palette, key, horizonY) {
   const cached = skyCache.get(key);
   if (cached) return cached;
 
   const layer = new Surface(width, height);
-  drawSky(layer, palette);
+  drawSky(layer, palette, horizonY);
   skyCache.set(key, layer);
   if (skyCache.size > 8) skyCache.delete(skyCache.keys().next().value);
   return layer;
@@ -136,14 +150,16 @@ function getSkyLayer(width, height, palette, key) {
  * @param {number} height
  * @param {object} palette
  * @param {string} key
+ * @param {number} snowCover
+ * @param {number} horizonY
  * @returns {Surface}
  */
-function getGroundLayer(width, height, palette, key, snowCover) {
+function getGroundLayer(width, height, palette, key, snowCover, horizonY) {
   const cached = groundCache.get(key);
   if (cached) return cached;
 
   const layer = new Surface(width, height);
-  paintGround(layer, palette, snowCover);
+  paintGround(layer, palette, snowCover, horizonY);
   groundCache.set(key, layer);
   if (groundCache.size > 8) groundCache.delete(groundCache.keys().next().value);
   return layer;
@@ -160,6 +176,7 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   if (!world || !world.place) return;
 
   const { width, height } = surface;
+  const { horizonY, baseX, baseY } = sceneLayout(width, height);
   const { lat, lon } = world.place;
   const hemisphere = lat >= 0 ? 'N' : 'S';
   const offset = world.now?.utcOffsetSeconds ?? 0;
@@ -182,24 +199,24 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   );
 
   const snowBucket = Math.round(conditions.snowCover * 10);
-  const key = `${paletteKey}:${snowBucket}:${width}`;
+  const key = `${paletteKey}:${snowBucket}:${width}x${height}`;
 
   // Небо (кэш) — копия всего верхнего буфера.
-  const sky = getSkyLayer(width, height, palette, key);
+  const sky = getSkyLayer(width, height, palette, key, horizonY);
   surface.pixels.set(sky.pixels);
 
   // Светила и звёзды — только когда погода известна.
   const sunPoint = known
-    ? celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg)
-    : { x: Math.round(surface.width / 2), y: HORIZON };
+    ? celestialPoint(surface, sun.hourAngleDeg, sun.altitudeDeg, horizonY)
+    : { x: Math.round(surface.width / 2), y: horizonY };
 
   if (known) {
-    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity });
-    drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs });
+    drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY });
+    drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs, horizonY });
 
     drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
 
-    const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg);
+    const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg, horizonY);
     drawMoon(surface, {
       ...moonPoint,
       palette,
@@ -221,12 +238,13 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     palette,
     sunAltitudeDeg: sun.altitudeDeg,
     fog: conditions.fog,
+    horizonY,
   });
 
   // Дымка у горизонта поверх облаков — воздух плотнее у земли.
   const haze = palette.haze;
-  for (let row = HORIZON - 5; row < HORIZON; row += 1) {
-    const density = ((row - (HORIZON - 6)) / 6) * 0.5;
+  for (let row = horizonY - 5; row < horizonY; row += 1) {
+    const density = ((row - (horizonY - 6)) / 6) * 0.5;
     for (let col = 0; col < width; col += 1) {
       if (bayerThreshold(col, row) < density) surface.pixel(col, row, haze);
     }
@@ -234,33 +252,34 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
 
   // Холмы — поверх облаков: они ближе. Рисуются каждый кадр, это дёшево.
   ridge(surface, {
-    base: 96,
+    base: horizonY - 22,
     amplitude: 9,
     period: 46,
     phase: 20,
     color: palette.land.far,
-    bottom: 132,
+    bottom: horizonY + 14,
   });
   ridge(surface, {
-    base: 106,
+    base: horizonY - 12,
     amplitude: 6,
     period: 29,
     phase: 90,
     color: palette.land.near,
-    bottom: 134,
+    bottom: horizonY + 16,
   });
 
   // Земля — из кэша, копируется одним куском.
-  const ground = getGroundLayer(width, height, palette, key, conditions.snowCover);
-  surface.pixels.set(ground.pixels.subarray(GROUND_TOP * width), GROUND_TOP * width);
+  const ground = getGroundLayer(width, height, palette, key, conditions.snowCover, horizonY);
+  surface.pixels.set(ground.pixels.subarray(horizonY * width), horizonY * width);
 
   // Мокрый грунт и лужи — до дерева, чтобы ствол оставался поверх.
-  drawGroundWetness(surface, conditions, { palette, timeMs: animMs });
+  drawGroundWetness(surface, conditions, { palette, timeMs: animMs, horizonY });
 
   // Дерево: сначала тень, потом ствол и крона.
   const seed = treeSeed(lat, lon);
-  if (treeCache.seed !== seed) {
-    treeCache = { seed, tree: buildTree(seed) };
+  const treeKey = `${seed}:${baseX}:${baseY}`;
+  if (treeCache.key !== treeKey) {
+    treeCache = { key: treeKey, tree: buildTree(seed, { baseX, baseY }) };
   }
 
   drawShadow(surface, treeCache.tree, {
@@ -298,5 +317,6 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     timeMs: animMs,
     windKmh: world.weather?.windKmh ?? 0,
     palette,
+    horizonY,
   });
 }

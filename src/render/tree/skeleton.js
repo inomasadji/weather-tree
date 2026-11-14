@@ -37,14 +37,13 @@ export function treeSeed(lat, lon) {
 /**
  * Строит геометрию ствола, ветвей и точек крепления кроны.
  * @param {number} seed
+ * @param {{baseX?: number, baseY?: number}} [anchor]
  * @returns {{segments: Array<object>, clusters: Array<object>, baseX: number, baseY: number}}
  */
-export function buildTree(seed) {
+export function buildTree(seed, { baseX = 80, baseY = 179 } = {}) {
   const random = mulberry32(seed);
   const segments = [];
   const clusters = [];
-  const baseX = 80;
-  const baseY = 179;
 
   /**
    * @param {number} x @param {number} y
@@ -70,7 +69,7 @@ export function buildTree(seed) {
 
     // Крона должна быть плотной, поэтому кластеры ставятся и в середине ветвей.
     // Ниже развилки листва не растёт — иначе зелёные шапки на голом стволе.
-    if (depth <= 2 && y2 < 130) {
+    if (depth <= 2 && y2 < baseY - 49) {
       clusters.push({
         x: (x + x2) / 2 + (random() - 0.5) * 4,
         y: (y + y2) / 2 + (random() - 0.5) * 4,

@@ -76,7 +76,7 @@ export function quantileThreshold(layer, fraction) {
  * Рисует облака. Порог зависит от облачности: 0 % — почти ничего, 100 % — плотный слой.
  * @param {import('./surface.js').Surface} surface
  * @param {Array<object>} layers
- * @param {{coverage: number, windKmh: number, timeMs: number, palette: object, sunAltitudeDeg: number}} options
+ * @param {{coverage: number, windKmh: number, timeMs: number, palette: object, sunAltitudeDeg: number, fog?: number, horizonY?: number}} options
  */
 export function drawClouds(surface, layers, {
   coverage,
@@ -85,11 +85,13 @@ export function drawClouds(surface, layers, {
   palette,
   sunAltitudeDeg,
   fog = 0,
+  horizonY = HORIZON_Y,
 }) {
   if (coverage < 0.02) return;
 
   const lightFromBelow = sunAltitudeDeg < 8 && sunAltitudeDeg > -12;
   const seconds = timeMs / 1000;
+  const skyScale = horizonY / HORIZON_Y;
 
   for (const layer of layers) {
     // Каждый следующий слой рисуется только при заметной облачности:
@@ -104,14 +106,15 @@ export function drawClouds(surface, layers, {
     const drift = seconds * layer.speed * (3 + windKmh * 0.55) + layer.offset * layer.width;
     const shift = Math.floor(drift) % layer.width;
     const height = layer.height - 1;
+    const baseY = Math.round(layer.y * skyScale);
 
     for (let row = 0; row < layer.height; row += 1) {
-      const screenY = layer.y + row;
+      const screenY = baseY + row;
       if (screenY >= surface.height) break;
 
       // Облако светится тем небом, на котором лежит: у горизонта — закатное,
       // в зените — холодное. Иначе сумрак получается ровно-фиолетовым.
-      const tone = skyToneAt(palette.sky, screenY / HORIZON_Y);
+      const tone = skyToneAt(palette.sky, screenY / horizonY);
       const fogMix = fog * (0.2 + 0.8 * Math.min(1, screenY / HORIZON_Y)) * 0.5;
       const body = mixColor(mixColor(tone, palette.cloudLight, 0.5), palette.haze, fogMix);
       const rim = mixColor(mixColor(body, palette.cloudRim, 0.65), palette.haze, fogMix * 0.8);

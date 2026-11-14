@@ -118,3 +118,16 @@ test('нейтральный кадр не показывает солнце', (
   for (const pixel of surface.pixels) if (pixel === palette.sunCore) sunPixels += 1;
   assert.equal(sunPixels, 0, 'в нейтральном кадре солнца быть не должно');
 });
+
+test('сцена корректно рендерится в произвольном полноэкранном разрешении', () => {
+  const world = worldFor(SUMMER_NOON, { tempC: 24, code: 61, cloudPct: 60, windKmh: 18 });
+
+  for (const [width, height] of [[360, 225], [195, 422]]) {
+    const surface = new Surface(width, height);
+    renderScene(surface, world, SUMMER_NOON, SUMMER_NOON);
+
+    for (let index = 3; index < surface.data.length; index += 4) {
+      assert.equal(surface.data[index], 255);
+    }
+  }
+});
