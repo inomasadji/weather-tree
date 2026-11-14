@@ -147,8 +147,7 @@ test('нейтральный кадр не показывает солнце', (
   assert.equal(sunPixels, 0, 'в нейтральном кадре солнца быть не должно');
 });
 
-test('сцена корректно рендерится в произвольном полноэкранном разрешении', () => {
-  const world = worldFor(SUMMER_NOON, { tempC: 24, code: 61, cloudPct: 60, windKmh: 18 });
+test('сцена корректно рендерится в произвольном полноэкранном разрешении', () => {  const world = worldFor(SUMMER_NOON, { tempC: 24, code: 61, cloudPct: 60, windKmh: 18 });
 
   for (const [width, height] of [[360, 225], [195, 422]]) {
     const surface = new Surface(width, height);
@@ -158,4 +157,18 @@ test('сцена корректно рендерится в произвольн
       assert.equal(surface.data[index], 255);
     }
   }
+});
+
+test('параллакс камеры сдвигает кадр и остаётся детерминированным', () => {
+  const world = worldFor(SUMMER_NOON, { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 });
+  const base = new Surface(LOGICAL.width, LOGICAL.height);
+  const shifted = new Surface(LOGICAL.width, LOGICAL.height);
+  const again = new Surface(LOGICAL.width, LOGICAL.height);
+
+  renderScene(base, world, SUMMER_NOON, SUMMER_NOON);
+  renderScene(shifted, world, SUMMER_NOON, SUMMER_NOON, { x: 0.8, y: -0.4 });
+  renderScene(again, world, SUMMER_NOON, SUMMER_NOON, { x: 0.8, y: -0.4 });
+
+  assert.deepEqual(shifted.data, again.data, 'параллакс детерминирован');
+  assert.notDeepEqual(shifted.data, base.data, 'сдвиг камеры должен менять кадр');
 });
