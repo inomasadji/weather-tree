@@ -1,7 +1,8 @@
 # План разработки «Weather Tree»
 
 **Версия плана:** 1.0 · **Дата:** 14.11.2026 · **Статус:** MVP готов; M0–M5 и M7 закрыты,
-M6 — частично. Открытые замечания и приоритеты — [AUDIT.md](AUDIT.md).
+M6 — частично. Открытые замечания и приоритеты — [AUDIT.md](AUDIT.md),
+работы разложены в [issues](https://github.com/inomasadji/weather-tree/issues) (milestone Post-MVP).
 
 ---
 
