@@ -3,6 +3,7 @@
 
 import { STORAGE_KEYS, WEATHER } from '../config.js';
 import { fetchWeather as defaultFetchWeather } from '../api/weather.js';
+import { fetchKp as defaultFetchKp } from '../api/aurora.js';
 import { readJson, writeJson } from './storage.js';
 import {
   isValidPlace,
@@ -36,6 +37,8 @@ export function readCachedStation(nowMs = Date.now()) {
 export function createWeatherController(options = {}) {
   const {
     fetchWeather = defaultFetchWeather,
+    fetchKp = defaultFetchKp,
+    kpOverride = null,
     resolvePlace = defaultResolvePlace,
     savePlace = defaultSavePlace,
     readCache = () => readCachedStation(),
@@ -62,12 +65,33 @@ export function createWeatherController(options = {}) {
     lastWorldBuild: 0,
     lastRainAtMs: 0,
     lastRainIntensity: 0,
+    kp: kpOverride ?? 0,
     failures: 0,
     demoMode: false,
   };
 
   let refreshTimer = null;
   let retryTimer = null;
+  let auroraTimer = null;
+
+  const AURORA_REFRESH_MS = 30 * 60_000;
+
+  /** Kp нужен только сиянию: ошибка сети здесь ничего не ломает. */
+  async function loadAurora() {
+    if (kpOverride !== null) {
+      state.kp = kpOverride;
+      return;
+    }
+
+    const result = await fetchKp();
+    if (!result.ok) return;
+
+    if (result.kp !== state.kp) {
+      state.kp = result.kp;
+      // Мир пересоберётся в ближайшую минуту — сияние появится или погаснет.
+      state.lastWorldBuild = 0;
+    }
+  }
 
   function clearRetry() {
     if (!retryTimer) return;
@@ -104,6 +128,7 @@ export function createWeatherController(options = {}) {
     const world = buildWorldState(station, at, {
       sinceRainMin: sinceRainMin(at),
       lastRainIntensity: state.lastRainIntensity,
+      kp: state.kp,
     });
     state.lastWorldBuild = at;
 
@@ -159,6 +184,11 @@ export function createWeatherController(options = {}) {
     refreshTimer = setInterval(() => {
       if (!isHidden()) loadWeather();
     }, WEATHER.refreshMs);
+
+    clearInterval(auroraTimer);
+    auroraTimer = setInterval(() => {
+      if (!isHidden()) loadAurora();
+    }, AURORA_REFRESH_MS);
   }
 
   async function selectPlace(place) {
@@ -178,6 +208,7 @@ export function createWeatherController(options = {}) {
 
   function startDemo({ place, atMs, overrides }) {
     state.demoMode = true;
+    // В демо Kp приходит из сценария (?kp=7), сеть не трогаем.
     const station = demoStation(place, { atMs, weather: overrides });
     state.place = station.place;
     onPlace(station.place);
@@ -197,6 +228,7 @@ export function createWeatherController(options = {}) {
     const cached = readCache();
     if (cached && samePlace(cached.place, place)) applyStation(cached, 'cache');
 
+    loadAurora();
     await loadWeather();
     scheduleRefresh();
   }
@@ -216,12 +248,15 @@ export function createWeatherController(options = {}) {
     return buildWorldState(state.station, at, {
       sinceRainMin: sinceRainMin(at),
       lastRainIntensity: state.lastRainIntensity,
+      kp: state.kp,
     });
   }
 
   function dispose() {
     clearInterval(refreshTimer);
     refreshTimer = null;
+    clearInterval(auroraTimer);
+    auroraTimer = null;
     clearRetry();
   }
 

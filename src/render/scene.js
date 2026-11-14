@@ -7,6 +7,8 @@ import { drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
 import { drawHorizonHaze, drawNearForeground } from './landscape.js';
+import { drawAurora } from './aurora.js';
+import { auroraStrength } from '../model/aurora.js';
 import {
   blitLandscape,
   clearLayerCache,
@@ -94,6 +96,14 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
   if (known) {
     drawMilkyWay(surface, { palette, starOpacity: palette.starOpacity, horizonY });
     drawStars(surface, { palette, starOpacity: palette.starOpacity, timeMs: animMs, horizonY });
+
+    // Сияние: над звёздами, но под облаками — они его и закрывают.
+    const kp = world.aurora?.kp ?? 0;
+    const aurora = known
+      ? auroraStrength({ kp, lat, sunAltitudeDeg: sun.altitudeDeg, cloudPct })
+      : 0;
+    if (aurora > 0) drawAurora(surface, { strength: aurora, palette, timeMs: animMs, seed, horizonY });
+
     drawSun(surface, { ...sunPoint, palette, altitudeDeg: sun.altitudeDeg });
 
     const moonPoint = celestialPoint(surface, moon.hourAngleDeg, moon.altitudeDeg, horizonY);

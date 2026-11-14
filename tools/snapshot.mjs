@@ -142,6 +142,14 @@ export const SCENARIOS = [
     atMs: Date.UTC(2026, 6, 20, 20, 30),
     weather: { tempC: 16, code: 0, cloudPct: 5, windKmh: 4, humidity: 65 },
   },
+  {
+    // Сияние: Мурманск, полярная ночь, сильная магнитная буря (Kp 7).
+    name: 'm15-aurora',
+    place: MURMANSK,
+    atMs: Date.UTC(2026, 11, 21, 18, 0),
+    weather: { tempC: -12, code: 0, cloudPct: 5, windKmh: 3, humidity: 70 },
+    kp: 7,
+  },
 ];
 
 /**
@@ -158,6 +166,7 @@ export function scenarioWorld(scenario) {
     world: buildWorldState(station, scenario.atMs, {
       sinceRainMin: scenario.sinceRainMin ?? 0,
       lastRainIntensity: scenario.lastRainIntensity ?? 0,
+      kp: scenario.kp ?? 0,
     }),
     atMs: scenario.atMs,
   };

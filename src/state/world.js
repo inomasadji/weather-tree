@@ -79,6 +79,10 @@ export function buildWorldState(station, atMs = Date.now(), memory = {}) {
       polar: times.polar,
       daylightSeconds: times.daylightSeconds || daily.daylightSeconds || 0,
     },
+    aurora: {
+      /** Планетарный Kp: 0 — сияния нет, 9 — максимум. */
+      kp: Math.max(0, Math.min(9, Number(memory.kp) || 0)),
+    },
     derived: {
       hemisphere,
       /** День/ночь — по астрономии, а не по флагу провайдера. */
