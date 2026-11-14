@@ -84,18 +84,18 @@ function browserCoordinates() {
 /**
  * @returns {Promise<{place: object, source: 'saved'|'geo'|'ip'|'fallback'}>}
  */
-export async function resolvePlace() {
+export async function resolvePlace(language) {
   const saved = readPlace();
   if (saved) return { place: saved, source: 'saved' };
 
   const coords = await browserCoordinates();
   if (coords) {
-    const { place } = await reverseGeocode(coords.lat, coords.lon);
+    const { place } = await reverseGeocode(coords.lat, coords.lon, language);
     savePlace(place);
     return { place, source: 'geo' };
   }
 
-  const byIp = await locateByIp();
+  const byIp = await locateByIp(language);
   if (byIp.ok) {
     savePlace(byIp.place);
     return { place: byIp.place, source: 'ip' };

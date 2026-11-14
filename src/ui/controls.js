@@ -1,15 +1,31 @@
 // Диалог выбора города: поиск через Open-Meteo Geocoding с дебаунсом.
 
 import { searchPlaces } from '../api/geocode.js';
+import { dict, normalizeLang } from '../model/i18n.js';
 
 /**
- * @param {{dialog: HTMLDialogElement, input: HTMLInputElement, results: HTMLElement, status: HTMLElement}} nodes
+ * @param {{dialog: HTMLDialogElement, input: HTMLInputElement, results: HTMLElement, status: HTMLElement, title?: HTMLElement, searchLabel?: HTMLElement, closeBtn?: HTMLElement}} nodes
  * @param {(place: object) => void} onSelect
+ * @param {{getLang?: () => string}} [options]
  */
-export function createPlaceDialog({ dialog, input, results, status }, onSelect) {
+export function createPlaceDialog(
+  { dialog, input, results, status, title, searchLabel, closeBtn },
+  onSelect,
+  { getLang = () => 'ru' } = {},
+) {
   let items = [];
   let debounce = null;
   let sequence = 0;
+
+  const strings = () => dict(normalizeLang(getLang())).dialog;
+
+  function applyStrings() {
+    const s = strings();
+    if (title) title.textContent = s.title;
+    if (searchLabel) searchLabel.textContent = s.searchLabel;
+    if (closeBtn) closeBtn.setAttribute('aria-label', s.closeAria);
+    input.placeholder = s.placeholder;
+  }
 
   function setStatus(text) {
     status.textContent = text ?? '';
@@ -47,6 +63,7 @@ export function createPlaceDialog({ dialog, input, results, status }, onSelect) 
 
   async function run(query) {
     const current = ++sequence;
+    const s = strings();
 
     if (query.trim().length < 2) {
       clearResults();
@@ -54,20 +71,20 @@ export function createPlaceDialog({ dialog, input, results, status }, onSelect) 
       return;
     }
 
-    setStatus('ищем…');
-    const result = await searchPlaces(query);
+    setStatus(s.searching);
+    const result = await searchPlaces(query, normalizeLang(getLang()));
 
     // Пока шёл запрос, пользователь мог набрать другое — старый ответ не нужен.
     if (current !== sequence) return;
 
     if (!result.ok) {
       clearResults();
-      setStatus(result.reason === 'timeout' ? 'сервис не отвечает' : 'не удалось найти города');
+      setStatus(result.reason === 'timeout' ? s.timeout : s.failed);
       return;
     }
 
     renderItems(result.items);
-    setStatus(result.items.length ? '' : 'ничего не нашлось');
+    setStatus(result.items.length ? '' : s.empty);
   }
 
   input.addEventListener('input', () => {
@@ -89,8 +106,11 @@ export function createPlaceDialog({ dialog, input, results, status }, onSelect) 
     dialog.close();
   });
 
+  applyStrings();
+
   return {
     open() {
+      applyStrings();
       input.value = '';
       clearResults();
       setStatus('');
@@ -98,5 +118,6 @@ export function createPlaceDialog({ dialog, input, results, status }, onSelect) 
       else dialog.setAttribute('open', '');
       input.focus();
     },
+    setLang: applyStrings,
   };
 }

@@ -20,14 +20,14 @@ function deviceTimeZone() {
  * @param {string} query
  * @returns {Promise<{ok: true, items: Array<object>} | {ok: false, reason: string}>}
  */
-export async function searchPlaces(query) {
+export async function searchPlaces(query, language = GEOCODE.language) {
   const trimmed = query.trim();
   if (trimmed.length < 2) return { ok: true, items: [] };
 
   const params = new URLSearchParams({
     name: trimmed,
     count: String(GEOCODE.results),
-    language: GEOCODE.language,
+    language,
     format: 'json',
   });
 
@@ -57,7 +57,7 @@ export async function searchPlaces(query) {
  * @param {number} lon
  * @returns {Promise<{ok: true, place: object}>}
  */
-export async function reverseGeocode(lat, lon) {
+export async function reverseGeocode(lat, lon, language = GEOCODE.language) {
   const approxLat = round(lat);
   const approxLon = round(lon);
   const fallback = {
@@ -71,7 +71,7 @@ export async function reverseGeocode(lat, lon) {
   const params = new URLSearchParams({
     latitude: String(approxLat),
     longitude: String(approxLon),
-    localityLanguage: GEOCODE.language,
+    localityLanguage: language,
   });
 
   const result = await fetchJson(`${GEOCODE.reverseUrl}?${params}`, {
@@ -103,7 +103,7 @@ export async function reverseGeocode(lat, lon) {
  * Название стараемся локализовать обратным геокодированием, но пояс берём из IP.
  * @returns {Promise<{ok: true, place: object} | {ok: false, reason: string}>}
  */
-export async function locateByIp() {
+export async function locateByIp(language = GEOCODE.language) {
   const result = await fetchJson(GEOCODE.ipUrl, { timeoutMs: GEOCODE.timeoutMs, retries: 1 });
   if (!result.ok) return result;
 
@@ -113,23 +113,24 @@ export async function locateByIp() {
   }
 
   const place = {
-    name: data.city || data.region || data.country || 'Текущее место',
+    name: data.city || data.region || data.country || (language === 'en' ? 'Current location' : 'Текущее место'),
     country: data.country ?? '',
     lat: round(data.latitude),
     lon: round(data.longitude),
     timeZone: data.timezone?.id ?? null,
   };
 
-  return { ok: true, place: await localizeName(place) };
+  return { ok: true, place: await localizeName(place, language) };
 }
 
 /**
- * Подменяет англоязычное имя из IP-базы на lokalное, если удалось.
+ * Подменяет англоязычное имя из IP-базы на локальное, если удалось.
  * @param {object} place
+ * @param {string} [language]
  * @returns {Promise<object>}
  */
-async function localizeName(place) {
-  const reverse = await reverseGeocode(place.lat, place.lon);
+async function localizeName(place, language = GEOCODE.language) {
+  const reverse = await reverseGeocode(place.lat, place.lon, language);
   const candidate = reverse?.place;
   const isCoordinates = /^-?\d+[.,]\d+,\s*-?\d+[.,]\d+$/.test(candidate?.name ?? '');
 

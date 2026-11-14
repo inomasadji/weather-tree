@@ -1,6 +1,8 @@
 // Коды WMO → человеческий текст и мелкие форматтеры.
 // Чистые функции: импортируются в node --test без DOM.
 
+import { dict } from './i18n.js';
+
 /** Коды с осадками в жидкой фазе — при морозе превращаются в мокрый снег. */
 const RAIN_CODES = {
   light: new Set([51, 56, 61, 66, 80]),
@@ -8,59 +10,24 @@ const RAIN_CODES = {
   heavy: new Set([55, 57, 65, 67, 82]),
 };
 
-const DESCRIPTIONS = {
-  0: 'Ясно',
-  1: 'Преимущественно ясно',
-  2: 'Переменная облачность',
-  3: 'Пасмурно',
-  45: 'Туман',
-  48: 'Туман с изморозью',
-  51: 'Слабая морось',
-  53: 'Морось',
-  55: 'Сильная морось',
-  56: 'Слабая ледяная морось',
-  57: 'Ледяная морось',
-  61: 'Небольшой дождь',
-  63: 'Дождь',
-  65: 'Сильный дождь',
-  66: 'Небольшой ледяной дождь',
-  67: 'Ледяной дождь',
-  71: 'Небольшой снег',
-  73: 'Снег',
-  75: 'Сильный снег',
-  77: 'Снежная крупа',
-  80: 'Небольшой ливень',
-  81: 'Ливень',
-  82: 'Сильный ливень',
-  85: 'Небольшой снегопад',
-  86: 'Сильный снегопад',
-  95: 'Гроза',
-  96: 'Гроза с небольшим градом',
-  99: 'Гроза с градом',
-};
-
-const FROZEN_RAIN = {
-  light: 'Небольшой мокрый снег',
-  moderate: 'Мокрый снег',
-  heavy: 'Сильный мокрый снег',
-};
-
 /**
  * Описание погоды по коду WMO с поправкой на температуру:
  * дождь при −5 °C называется мокрым снегом, а не дождём.
  * @param {number} code
  * @param {number} [tempC]
+ * @param {string} [lang]
  * @returns {string}
  */
-export function describeWeather(code, tempC) {
-  const base = DESCRIPTIONS[code];
-  if (!base) return 'Погода без описания';
+export function describeWeather(code, tempC, lang = 'ru') {
+  const strings = dict(lang);
+  const base = strings.weather[code];
+  if (!base) return strings.unknownWeather;
 
   const frozen = typeof tempC === 'number' && tempC <= 1.5;
   if (!frozen) return base;
 
   for (const [intensity, codes] of Object.entries(RAIN_CODES)) {
-    if (codes.has(code)) return FROZEN_RAIN[intensity];
+    if (codes.has(code)) return strings.frozenRain[intensity];
   }
   return base;
 }
@@ -75,17 +42,16 @@ export function isPrecipitation(code) {
   );
 }
 
-const CARDINALS = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
-
 /**
  * Градусы → румб (8 направлений, где дует ветер).
  * @param {number} deg
+ * @param {string} [lang]
  * @returns {string}
  */
-export function windCardinal(deg) {
+export function windCardinal(deg, lang = 'ru') {
   if (typeof deg !== 'number' || !Number.isFinite(deg)) return '—';
   const index = Math.round(((deg % 360) + 360) % 360 / 45) % 8;
-  return CARDINALS[index];
+  return dict(lang).cardinals[index];
 }
 
 /**
@@ -102,13 +68,14 @@ export function formatTemp(tempC) {
 }
 
 /**
- * Ветер в вид «28 км/ч ЮЗ».
+ * Ветер в вид «28 км/ч ЮЗ» или «28 km/h SW».
  * @param {number} kmh
  * @param {number} [deg]
+ * @param {string} [lang]
  * @returns {string}
  */
-export function formatWind(kmh, deg) {
+export function formatWind(kmh, deg, lang = 'ru') {
   if (typeof kmh !== 'number' || !Number.isFinite(kmh)) return '—';
-  const speed = `${Math.round(kmh)} км/ч`;
-  return deg === undefined ? speed : `${speed} ${windCardinal(deg)}`;
+  const speed = `${Math.round(kmh)} ${dict(lang).windUnit}`;
+  return deg === undefined ? speed : `${speed} ${windCardinal(deg, lang)}`;
 }

@@ -2,7 +2,7 @@
 // Всё считается от «сдвинутой» даты: Date.now() + смещение, дальше — UTC-геттеры.
 // Так часы станции идут правильно независимо от пояса устройства.
 
-import { LOCALE } from '../config.js';
+import { dict } from './i18n.js';
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -40,20 +40,30 @@ export function formatClockParts(date) {
   };
 }
 
-const dateFormatter = new Intl.DateTimeFormat(LOCALE, {
-  weekday: 'short',
-  day: 'numeric',
-  month: 'long',
-  timeZone: 'UTC',
-});
+const dateFormatters = new Map();
+
+function getDateFormatter(locale) {
+  let formatter = dateFormatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'UTC',
+    });
+    dateFormatters.set(locale, formatter);
+  }
+  return formatter;
+}
 
 /**
  * «сб, 14 января» — от сдвинутой даты, поэтому timeZone: 'UTC'.
  * @param {Date} date
+ * @param {string} [lang]
  * @returns {string}
  */
-export function formatDate(date) {
-  return dateFormatter.format(date);
+export function formatDate(date, lang = 'ru') {
+  return getDateFormatter(dict(lang).locale).format(date);
 }
 
 /**
@@ -99,13 +109,15 @@ export function offsetSecondsFor(timeZone, atMs = Date.now()) {
  * «сейчас», «3 мин назад», «2 ч назад».
  * @param {number} fromMs
  * @param {number} [atMs]
+ * @param {string} [lang]
  * @returns {string}
  */
-export function formatRelative(fromMs, atMs = Date.now()) {
+export function formatRelative(fromMs, atMs = Date.now(), lang = 'ru') {
+  const { relative } = dict(lang);
   const minutes = Math.max(0, Math.round((atMs - fromMs) / 60_000));
-  if (minutes < 1) return 'сейчас';
-  if (minutes < 60) return `${minutes} мин назад`;
+  if (minutes < 1) return relative.now;
+  if (minutes < 60) return relative.min(minutes);
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} ч назад`;
-  return `${Math.round(hours / 24)} сут назад`;
+  if (hours < 24) return relative.hour(hours);
+  return relative.day(Math.round(hours / 24));
 }

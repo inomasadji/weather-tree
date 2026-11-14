@@ -272,6 +272,13 @@ body {
   cursor: pointer;
 }
 
+.lang-btn {
+  width: auto;
+  padding: 0 6px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
 .icon-btn:hover,
 .icon-btn:focus-visible {
   border-color: var(--accent);

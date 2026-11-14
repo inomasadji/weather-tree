@@ -47,6 +47,7 @@ export const STORAGE_KEYS = {
   place: 'weather-tree:place:v1',
   station: 'weather-tree:station:v1',
   provider: 'weather-tree:provider:v1',
+  lang: 'weather-tree:lang:v1',
 };
 
 /** Если всё остальное не сработало — показываем Москву. */

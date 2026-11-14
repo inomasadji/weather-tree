@@ -1,17 +1,20 @@
 // Текстовое описание кадра — для скринридеров и для aria-label сцены.
-// Чистая функция: WorldState → короткая фраза по-русски.
+// Чистая функция: WorldState → короткая фраза.
 
 import { foliageState } from './phenology.js';
 import { sceneConditions } from './conditions.js';
 import { describeWeather } from './weather.js';
+import { dict } from './i18n.js';
 
 /**
  * @param {object} world WorldState
+ * @param {string} [lang]
  * @returns {string}
  */
-export function describeScene(world) {
-  if (!world || !world.weather) return 'Погодная сцена с деревом';
-  if (world.weather.known === false) return 'Пиксельная сцена: погода загружается';
+export function describeScene(world, lang = 'ru') {
+  const d = dict(lang).describe;
+  if (!world || !world.weather) return d.fallback;
+  if (world.weather.known === false) return d.loading;
 
   const conditions = sceneConditions(world);
   const season = world.derived?.season ?? 0.5;
@@ -21,21 +24,21 @@ export function describeScene(world) {
   });
 
   const parts = [];
-  parts.push(world.derived?.isDay ? 'день' : 'ночь');
-  parts.push(describeWeather(world.weather.code, world.weather.tempC).toLowerCase());
+  parts.push(world.derived?.isDay ? d.day : d.night);
+  parts.push(describeWeather(world.weather.code, world.weather.tempC, lang).toLowerCase());
 
-  if (conditions.snowing) parts.push('снегопад');
-  else if (conditions.precip.type === 'rain') parts.push('дождь');
-  if (conditions.fog > 0.4) parts.push('туман');
-  if (conditions.storm) parts.push('гроза');
+  if (conditions.snowing) parts.push(d.snowing);
+  else if (conditions.precip.type === 'rain') parts.push(d.rain);
+  if (conditions.fog > 0.4) parts.push(d.fog);
+  if (conditions.storm) parts.push(d.storm);
 
-  if (foliage.stage === 'bare') parts.push('дерево без листвы');
-  else if (foliage.stage === 'blossom') parts.push('дерево в цвету');
-  else if (foliage.stage === 'young') parts.push('молодая листва');
-  else parts.push('дерево в листве');
+  if (foliage.stage === 'bare') parts.push(d.bare);
+  else if (foliage.stage === 'blossom') parts.push(d.blossom);
+  else if (foliage.stage === 'young') parts.push(d.young);
+  else parts.push(d.leafy);
 
-  if (conditions.snowLoad > 0.4) parts.push('ветки в снегу');
-  if (world.weather.windKmh >= 20) parts.push(`ветер ${Math.round(world.weather.windKmh)} км/ч`);
+  if (conditions.snowLoad > 0.4) parts.push(d.snowBranches);
+  if (world.weather.windKmh >= 20) parts.push(d.wind(Math.round(world.weather.windKmh)));
 
-  return `Пиксельная сцена: ${parts.join(', ')}`;
+  return `${d.prefix}: ${parts.join(', ')}`;
 }

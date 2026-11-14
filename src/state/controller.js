@@ -12,16 +12,9 @@ import {
 } from './place.js';
 import { buildAmbientWorld, buildWorldState } from './world.js';
 import { demoStation } from './demo.js';
+import { dict, normalizeLang } from '../model/i18n.js';
 
-const REASON_TEXT = {
-  timeout: 'сервис погоды не ответил',
-  network: 'нет соединения с сервисом погоды',
-  parse: 'сервис вернул непонятный ответ',
-  'http:429': 'превышен лимит запросов',
-  shape: 'неожиданный ответ сервиса',
-};
-
-export const humanReason = (reason) => REASON_TEXT[reason] ?? String(reason);
+export const humanReason = (reason, lang = 'ru') => dict(lang).reasons[reason] ?? String(reason);
 
 /**
  * Читает сохранённый ответ станции, если он валиден и не старше суток.
@@ -48,6 +41,7 @@ export function createWeatherController(options = {}) {
     writeCache = (station) => writeJson(STORAGE_KEYS.station, station),
     sceneNow = () => Date.now(),
     isHidden = () => false,
+    getLang = () => 'ru',
     onPlace = () => {},
     onStation = () => {},
     onWorld = () => {},
@@ -55,6 +49,8 @@ export function createWeatherController(options = {}) {
     onSourceHint = () => {},
     onMessage = () => {},
   } = options;
+
+  const lang = () => normalizeLang(getLang());
 
   const state = {
     place: null,
@@ -99,7 +95,7 @@ export function createWeatherController(options = {}) {
       source,
       fetchedAt: source === 'demo' ? null : station.fetchedAt,
     });
-    onSourceHint(state.provider ? `источник: ${state.provider}` : null);
+    onSourceHint(state.provider ? dict(lang()).hud.providerHint(state.provider) : null);
     onMessage(null);
   }
 
@@ -123,12 +119,13 @@ export function createWeatherController(options = {}) {
       state.failures += 1;
 
       const cached = readCache();
+      const reason = humanReason(result.reason, lang());
       if (cached && samePlace(cached.place, state.place)) {
         applyStation(cached, 'cache');
-        onMessage(`Погода не обновилась: ${humanReason(result.reason)}. Показаны последние данные.`);
+        onMessage(dict(lang()).messages.staleCache(reason));
       } else {
         onSource('error');
-        onMessage(`Не удалось получить погоду: ${humanReason(result.reason)}.`);
+        onMessage(dict(lang()).messages.loadFailed(reason));
       }
 
       scheduleRetry();
@@ -157,7 +154,7 @@ export function createWeatherController(options = {}) {
     // Сначала нейтральный кадр новой точки, потом погода — так переход мягче.
     const ambient = buildAmbientWorld(place);
     onWorld(ambient, 600);
-    onMessage('Погода загружается…');
+    onMessage(dict(lang()).hud.loadingWeather);
     await loadWeather();
   }
 
@@ -170,14 +167,14 @@ export function createWeatherController(options = {}) {
   }
 
   async function startLive() {
-    const { place } = await resolvePlace();
+    const { place } = await resolvePlace(lang());
     state.place = place;
 
     // До прихода погоды — нейтральный кадр, а не уверенное «ясно».
     const ambient = buildAmbientWorld(place);
     onWorld(ambient, 0);
     onPlace(place);
-    onMessage('Погода загружается…');
+    onMessage(dict(lang()).hud.loadingWeather);
 
     const cached = readCache();
     if (cached && samePlace(cached.place, place)) applyStation(cached, 'cache');

@@ -234,6 +234,14 @@ async function run() {
     assert.ok(desktop.br.top >= 0 && desktop.br.bottom <= desktop.innerH);
     assert.ok(desktop.hr.right <= desktop.br.left || desktop.hr.bottom <= desktop.br.top, 'HUD и панель не должны пересекаться');
 
+    // Проверка переключения языка RU <-> EN.
+    await evalJs(cdp, "document.getElementById('lang-btn').click()");
+    assert.equal(await evalJs(cdp, "document.getElementById('lang-btn').textContent"), 'EN');
+    assert.equal(await evalJs(cdp, "document.getElementById('label-wind').textContent"), 'Wind');
+    await evalJs(cdp, "document.getElementById('lang-btn').click()");
+    assert.equal(await evalJs(cdp, "document.getElementById('lang-btn').textContent"), 'RU');
+    assert.equal(await evalJs(cdp, "document.getElementById('label-wind').textContent"), 'Ветер');
+
     // Проверка диалога выбора города.
     await evalJs(cdp, "document.getElementById('place-btn').click()");
     assert.equal(await evalJs(cdp, "document.getElementById('place-dialog').open"), true);
