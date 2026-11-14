@@ -98,36 +98,47 @@ function connectCdp(wsUrl) {
 function launchBrowser(browserPath, userDataDir) {
   return new Promise((resolve, reject) => {
     const child = spawn(browserPath, [
-      '--headless=new',
+      '--headless',
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--no-first-run',
       '--no-default-browser-check',
       '--no-sandbox',
+      '--disable-setuid-sandbox',
       '--remote-debugging-port=0',
       `--user-data-dir=${userDataDir}`,
       'about:blank',
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
     let stderr = '';
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error(`браузер не поднял DevTools за 10 с: ${stderr}`));
-    }, 10_000);
+      finish(reject, new Error(`браузер не поднял DevTools за 20 с: ${stderr}`));
+    }, 20_000);
 
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
-      const match = /DevTools listening on (ws:\/\/127\.0\.0\.1:\d+\/[^\s]+)/.exec(stderr);
+      const match = /DevTools listening on (ws:\/\/[^\s]+)/.exec(stderr);
       if (match) {
-        clearTimeout(timer);
         const ws = new URL(match[1]);
-        resolve({ child, httpOrigin: `http://127.0.0.1:${ws.port}` });
+        finish(resolve, { child, httpOrigin: `http://${ws.host}` });
       }
     });
 
+    child.on('exit', (code, signal) => {
+      finish(reject, new Error(`браузер завершился (code=${code}, signal=${signal}): ${stderr}`));
+    });
+
     child.on('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
+      finish(reject, error);
     });
   });
 }
