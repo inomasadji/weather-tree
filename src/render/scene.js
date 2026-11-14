@@ -3,10 +3,11 @@
 // палитры: в кадре остаются только копии буферов и анимируемые слои.
 
 import { HORIZON_Y, LOGICAL } from '../config.js';
-import { Surface, bayerThreshold } from './surface.js';
+import { Surface } from './surface.js';
 import { drawSky, drawStars, drawMilkyWay } from './sky.js';
 import { drawSun, drawMoon, celestialPoint } from './celestial.js';
 import { createCloudLayers, drawClouds } from './clouds.js';
+import { drawHills, paintGround } from './landscape.js';
 import { scenePalette } from '../model/palette.js';
 import { sunPosition, moonPosition, moonPhase } from '../model/sun.js';
 import { seasonPhase } from '../model/season.js';
@@ -66,64 +67,6 @@ function paletteFor(altitudeDeg, cloudPct, season, storm, neutral) {
   }
 
   return { palette, key };
-}
-
-/**
- * Скалистый гребень: две синусоиды дают силуэт без ассетов.
- * @param {Surface} surface
- * @param {{base: number, amplitude: number, period: number, phase: number, color: number, bottom: number}} options
- */
-function ridge(surface, { base, amplitude, period, phase, color, bottom }) {
-  for (let x = 0; x < surface.width; x += 1) {
-    const y = Math.round(
-      base +
-        Math.sin((x + phase) / period) * amplitude +
-        Math.sin((x + phase) / (period / 3.7)) * amplitude * 0.4,
-    );
-    surface.fillRect(x, y, 1, bottom - y, color);
-  }
-}
-
-/**
- * Земля и трава в отдельном буфере: перерисовывается только при смене палитры.
- * Холмы рисуются поверх кадра отдельно — они не сплошные и не должны перекрывать небо.
- * @param {Surface} surface
- * @param {object} palette
- */
-function paintGround(surface, palette, snowCover, horizonY) {
-  const { width, height } = surface;
-  const { land } = palette;
-
-  surface.fillRect(0, horizonY, width, height - horizonY, land.ground);
-
-  // Текстура: детерминированный шум вместо Math.random().
-  for (let y = horizonY + 2; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const noise = Surface.noise(x, y, 7);
-      if (noise > 0.955) surface.pixel(x, y, land.light);
-      else if (noise < 0.045) surface.pixel(x, y, land.dark);
-    }
-  }
-
-  // Снежный покров: от проплешин до сплошного наста.
-  if (snowCover > 0.02) {
-    for (let y = horizonY; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const noise = Surface.noise(x, y, 41);
-        if (noise < snowCover) {
-          surface.pixel(x, y, noise < snowCover * 0.75 ? land.snow : land.snowLight);
-        }
-      }
-    }
-  }
-
-  // Травинки у горизонта — чтобы край не был линейкой.
-  const blades = Math.max(12, Math.round(26 * (width / LOGICAL.width)));
-  for (let index = 0; index < blades; index += 1) {
-    const x = Math.round(Surface.noise(index, 1, 31) * width);
-    const bladeHeight = 1 + Math.round(Surface.noise(index, 2, 31) * 2);
-    surface.fillRect(x, horizonY - bladeHeight, 1, bladeHeight, snowCover > 0.6 ? land.snow : land.light);
-  }
 }
 
 /**
@@ -241,32 +184,8 @@ export function renderScene(surface, world, atMs = Date.now(), animMs = atMs) {
     horizonY,
   });
 
-  // Дымка у горизонта поверх облаков — воздух плотнее у земли.
-  const haze = palette.haze;
-  for (let row = horizonY - 5; row < horizonY; row += 1) {
-    const density = ((row - (horizonY - 6)) / 6) * 0.5;
-    for (let col = 0; col < width; col += 1) {
-      if (bayerThreshold(col, row) < density) surface.pixel(col, row, haze);
-    }
-  }
-
-  // Холмы — поверх облаков: они ближе. Рисуются каждый кадр, это дёшево.
-  ridge(surface, {
-    base: horizonY - 22,
-    amplitude: 9,
-    period: 46,
-    phase: 20,
-    color: palette.land.far,
-    bottom: horizonY + 14,
-  });
-  ridge(surface, {
-    base: horizonY - 12,
-    amplitude: 6,
-    period: 29,
-    phase: 90,
-    color: palette.land.near,
-    bottom: horizonY + 16,
-  });
+  // Дымка у горизонта и холмы поверх облаков: они ближе.
+  drawHills(surface, palette, horizonY);
 
   // Земля — из кэша, копируется одним куском.
   const ground = getGroundLayer(width, height, palette, key, conditions.snowCover, horizonY);
