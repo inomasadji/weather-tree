@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Surface } from '../src/render/surface.js';
-import { renderScene, HORIZON } from '../src/render/scene.js';
+import { clearSceneCache, renderScene, HORIZON } from '../src/render/scene.js';
 import { LOGICAL } from '../src/config.js';
 import { demoStation } from '../src/state/demo.js';
 import { buildWorldState } from '../src/state/world.js';
@@ -94,6 +94,18 @@ test('ночью на ясном небе есть звёзды', () => {
 
 test('горизонт внутри буфера', () => {
   assert.ok(HORIZON > 0 && HORIZON < LOGICAL.height);
+});
+
+test('clearSceneCache сбрасывает кэши, не ломая последующий рендер', () => {
+  const world = worldFor(SUMMER_NOON, { tempC: 24, code: 0, cloudPct: 5, windKmh: 4 });
+  const first = new Surface(LOGICAL.width, LOGICAL.height);
+  const second = new Surface(LOGICAL.width, LOGICAL.height);
+
+  renderScene(first, world, SUMMER_NOON, SUMMER_NOON);
+  clearSceneCache();
+  renderScene(second, world, SUMMER_NOON, SUMMER_NOON);
+
+  assert.deepEqual(first.data, second.data);
 });
 
 test('нейтральный кадр не показывает солнце', () => {

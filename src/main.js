@@ -1,9 +1,12 @@
-// Точка входа: связывает контроллер данных, рендер-цикл, HUD и диалог выбора города.
+// Точка входа: связывает контроллер данных, рендер-цикл, HUD, язык и диалог города.
 
+import { STORAGE_KEYS } from './config.js';
 import { createWeatherController } from './state/controller.js';
+import { readJson, writeJson } from './state/storage.js';
 import { describeScene } from './model/describe.js';
+import { dict, normalizeLang } from './model/i18n.js';
 import { Surface } from './render/surface.js';
-import { renderScene } from './render/scene.js';
+import { clearSceneCache, renderScene } from './render/scene.js';
 import { createStage } from './ui/stage.js';
 import { createFrameGuard, createFramePacer } from './ui/loop.js';
 import { createHud } from './ui/hud.js';
@@ -22,9 +25,13 @@ function numberParam(params, name, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+const params = new URLSearchParams(location.search);
+let lang = normalizeLang(params.get('lang') ?? readJson(STORAGE_KEYS.lang));
+document.documentElement.lang = lang;
+
 const canvas = document.getElementById('scene');
 const stageHolder = document.getElementById('stage');
-const hud = createHud(document);
+const hud = createHud(document, { lang });
 
 let dirty = true;
 const stage = createStage(canvas, stageHolder, {
@@ -65,7 +72,7 @@ let stopped = false;
 function setWorld(world, duration = 2500) {
   if (!world) return;
   hud.setSun(world.sun);
-  canvas.setAttribute('aria-label', describeScene(world));
+  canvas.setAttribute('aria-label', describeScene(world, lang));
 
   if (!currentWorld || duration <= 0 || reducedMotion) {
     currentWorld = world;
@@ -80,6 +87,7 @@ function setWorld(world, duration = 2500) {
 const controller = createWeatherController({
   sceneNow,
   isHidden: () => document.hidden,
+  getLang: () => lang,
   onPlace: (place) => hud.setPlace(place),
   onStation: (station, meta) => hud.setStation(station, meta),
   onWorld: (world, duration) => setWorld(world, duration),
@@ -94,17 +102,41 @@ const placeDialog = createPlaceDialog(
     input: document.getElementById('place-input'),
     results: document.getElementById('place-results'),
     status: document.getElementById('place-status'),
+    title: document.getElementById('place-title'),
+    searchLabel: document.getElementById('place-search-label'),
+    closeBtn: document.getElementById('place-close'),
   },
   (place) => controller.selectPlace(place),
+  { getLang: () => lang },
 );
+
+function setLanguage(nextLang) {
+  lang = normalizeLang(nextLang);
+  writeJson(STORAGE_KEYS.lang, lang);
+  document.documentElement.lang = lang;
+  hud.setLang(lang);
+  placeDialog.setLang();
+  if (currentWorld) canvas.setAttribute('aria-label', describeScene(currentWorld, lang));
+  const provider = controller.state.provider;
+  if (provider) hud.setSourceHint(dict(lang).hud.providerHint(provider));
+}
 
 document.getElementById('place-btn').addEventListener('click', () => placeDialog.open());
 document.getElementById('refresh-btn').addEventListener('click', () => controller.loadWeather());
+document.getElementById('lang-btn').addEventListener('click', () => {
+  setLanguage(lang === 'ru' ? 'en' : 'ru');
+});
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   hud.tick(sceneNow());
   controller.refreshIfDue();
+});
+
+// Сбрасываем кэши и таймеры при уходе со страницы.
+window.addEventListener('pagehide', () => {
+  controller.dispose();
+  clearSceneCache();
 });
 
 function frame(now) {
@@ -119,7 +151,7 @@ function frame(now) {
     if (nextWorld) {
       currentWorld = nextWorld;
       hud.setSun(nextWorld.sun);
-      canvas.setAttribute('aria-label', describeScene(nextWorld));
+      canvas.setAttribute('aria-label', describeScene(nextWorld, lang));
     }
   }
 
@@ -153,7 +185,7 @@ function frame(now) {
     if (!drawn && frameGuard.exhausted) {
       stopped = true;
       stage.paintPlaceholder();
-      hud.setMessage('Сцена остановлена из-за ошибки рендера — обновите страницу.');
+      hud.setMessage(dict(lang).hud.renderStopped);
       return;
     }
   }
@@ -166,15 +198,16 @@ async function start() {
   requestAnimationFrame(frame);
 
   // ?demo=1 — офлайн-режим для разработки и скриншотов, без единого запроса в сеть.
-  const params = new URLSearchParams(location.search);
   if (params.has('demo')) {
     const atParam = params.get('at');
     const atMs = atParam ? Date.parse(atParam) : Date.now();
     if (Number.isFinite(atMs) && atParam) timeShiftMs = atMs - Date.now();
 
+    const defaultName = lang === 'en' ? 'Moscow' : 'Москва';
+    const defaultCountry = lang === 'en' ? 'Russia' : 'Россия';
     const place = {
-      name: params.get('name') ?? 'Москва',
-      country: params.get('country') ?? 'Россия',
+      name: params.get('name') ?? defaultName,
+      country: params.get('country') ?? defaultCountry,
       lat: numberParam(params, 'lat', 55.7558),
       lon: numberParam(params, 'lon', 37.6173),
       timeZone: params.get('tz') ?? 'Europe/Moscow',

@@ -27,6 +27,16 @@ let cloudLayers = null;
 let cloudLayersWidth = 0;
 let treeCache = { key: null, tree: null };
 
+/** Освобождает кэши слоёв и геометрии при уходе со страницы. */
+export function clearSceneCache() {
+  skyCache.clear();
+  groundCache.clear();
+  paletteCache.clear();
+  cloudLayers = null;
+  cloudLayersWidth = 0;
+  treeCache = { key: null, tree: null };
+}
+
 /** @param {number} width @param {number} height */
 function sceneLayout(width, height) {
   const horizonY = height === LOGICAL.height
