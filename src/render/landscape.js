@@ -66,6 +66,7 @@ export function paintLandscape(surface, {
   lat,
   foliage,
   sunDir = 1,
+  rime = 0,
 }) {
   const { width, height } = surface;
   const { land } = palette;
@@ -148,6 +149,16 @@ export function paintLandscape(surface, {
     if (depth > 0.35) surface.pixel(x - 1, y - 1, tone);
     if (depth > 0.55 && hash2(index, 3, 71) > 0.4) surface.pixel(x + 1, y - 1, tone);
     if (depth > 0.78) surface.pixel(x, y - 2, tone);
+  }
+
+  // Иней на траве: те же пучки, но с холодной кромкой на верхушках.
+  if (rime > 0.05) {
+    for (let index = 0; index < tufts; index += 1) {
+      const x = Math.round(hash2(index, 1, 71) * (width - 6)) + 3;
+      const y = Math.round(horizonY + 4 + hash2(index, 2, 71) * spanY);
+      if (hash2(index, 5, 73) > rime * 0.7) continue;
+      surface.pixel(x, y - 1, palette.rime);
+    }
   }
 
   return {

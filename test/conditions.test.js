@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   classifyPrecipitation,
+  dryingWetness,
+  rimeLoad,
   sceneConditions,
   windAmplitude,
 } from '../src/model/conditions.js';
@@ -112,4 +114,39 @@ test('свежий снег виден независимо от высоты п
 test('на жаре остатки снега тают', () => {
   const warm = sceneConditions(worldWith({ code: 0, tempC: 16, snowDepthM: 0.3 }));
   assert.equal(warm.snowCover, 0);
+});
+
+test('иней: мороз и влажный воздух, независимо от осадков', () => {
+  assert.ok(rimeLoad(-8, 95) > 0.8, `иней ${rimeLoad(-8, 95)}`);
+  assert.ok(rimeLoad(-8, 95) > rimeLoad(-4, 95), 'в крепкий мороз инея больше');
+  assert.ok(rimeLoad(-8, 95) > rimeLoad(-8, 70), 'в сухой воздух иней не садится');
+  assert.equal(rimeLoad(-1, 99), 0, 'при нуле инея нет');
+  assert.equal(rimeLoad(5, 99), 0);
+});
+
+test('в снегопад иней есть, но слабее — его маскируют шапки', () => {
+  assert.ok(rimeLoad(-8, 95, true) < rimeLoad(-8, 95, false));
+  assert.ok(rimeLoad(-8, 95, true) > 0);
+});
+
+test('иней попадает в условия сцены', () => {
+  assert.ok(sceneConditions(worldWith({ code: 0, tempC: -8, humidity: 95 })).rime > 0.7);
+  assert.equal(sceneConditions(worldWith({ code: 0, tempC: 10, humidity: 95 })).rime, 0);
+});
+
+test('влага после дождя сохнет ~15 минут', () => {
+  assert.equal(dryingWetness(0.8, 0, 0.8), 0.8);
+  assert.ok(dryingWetness(0, 3, 0.8) > 0.4, 'через 3 минуты ещё мокро');
+  assert.ok(dryingWetness(0, 10, 0.8) < dryingWetness(0, 3, 0.8));
+  assert.equal(dryingWetness(0, 15, 0.8), 0);
+  assert.equal(dryingWetness(0, 60, 0.8), 0);
+  assert.equal(dryingWetness(0, 0, 0), 0, 'без дождя сухо даже сразу');
+});
+
+test('мокрость в сцене держится после дождя', () => {
+  const drying = sceneConditions(worldWith({ code: 3, tempC: 12, sinceRainMin: 5, lastRainIntensity: 0.6 }));
+  const dry = sceneConditions(worldWith({ code: 3, tempC: 12 }));
+
+  assert.ok(drying.wetness > 0.3, `мокрость ${drying.wetness}`);
+  assert.equal(dry.wetness, 0);
 });

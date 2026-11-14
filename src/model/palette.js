@@ -161,6 +161,8 @@ export function scenePalette({
     star: base.star,
     /** Насколько видны звёзды: темнота × прозрачность неба. */
     starOpacity: neutral ? 0 : clamp01((-altitudeDeg - 4) / 10) * (1 - clouds * 0.85),
+    /** Иней: холодный белёсый налёт на ветвях и траве. */
+    rime: shade(hexColor('#dfeefb'), Math.max(0.35, light)),
     haze: applyTint(base.haze, tint),
     land: {
       far: shade(hexColor(land.far), light),

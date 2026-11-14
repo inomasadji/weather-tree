@@ -81,7 +81,7 @@ export const SCENARIOS = [
     name: 'm11-january-noon',
     place: MOSCOW,
     atMs: Date.UTC(2026, 0, 15, 9, 0),
-    weather: { tempC: -7, code: 1, cloudPct: 25, windKmh: 6 },
+    weather: { tempC: -7, code: 1, cloudPct: 25, windKmh: 6, humidity: 90 },
   },
   {
     name: 'm11-march-noon',
@@ -126,6 +126,15 @@ export const SCENARIOS = [
     atMs: Date.UTC(2026, 10, 20, 6, 0),
     weather: { tempC: 0, code: 68, cloudPct: 95, windKmh: 12, humidity: 92 },
   },
+  {
+    // Дождь кончился 5 минут назад: земля ещё мокрая, лужи подсыхают.
+    name: 'm11-wet-after-rain',
+    place: MOSCOW,
+    atMs: Date.UTC(2026, 8, 15, 12, 0),
+    weather: { tempC: 12, code: 3, cloudPct: 60, windKmh: 8, humidity: 80 },
+    sinceRainMin: 5,
+    lastRainIntensity: 0.6,
+  },
 ];
 
 /**
@@ -139,7 +148,10 @@ export function scenarioWorld(scenario) {
   });
 
   return {
-    world: buildWorldState(station, scenario.atMs),
+    world: buildWorldState(station, scenario.atMs, {
+      sinceRainMin: scenario.sinceRainMin ?? 0,
+      lastRainIntensity: scenario.lastRainIntensity ?? 0,
+    }),
     atMs: scenario.atMs,
   };
 }

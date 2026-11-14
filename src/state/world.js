@@ -16,9 +16,10 @@ import { seasonPhase } from '../model/season.js';
 /**
  * @param {object} station результат api/openMeteo.js или api/wttr.js
  * @param {number} [atMs] момент, на который строим состояние (для тестов и таймшифта)
+ * @param {{sinceRainMin?: number}} [memory] память о погоде: сколько минут назад кончился дождь
  * @returns {object|null}
  */
-export function buildWorldState(station, atMs = Date.now()) {
+export function buildWorldState(station, atMs = Date.now(), memory = {}) {
   if (!station || !station.current || !station.place) return null;
 
   const offset = Number.isFinite(station.utcOffsetSeconds) ? station.utcOffsetSeconds : 0;
@@ -66,6 +67,10 @@ export function buildWorldState(station, atMs = Date.now()) {
       gustKmh: current.gustKmh,
       windDirDeg: current.windDirDeg,
       windCardinal: windCardinal(current.windDirDeg),
+      /** Минут с последнего дождя: сцена досыхает ~15 минут после осадков. */
+      sinceRainMin: Math.max(0, memory.sinceRainMin ?? 0),
+      /** Интенсивность последнего дождя: с неё начинается досыхание. */
+      lastRainIntensity: Math.max(0, Math.min(1, memory.lastRainIntensity ?? 0)),
     },
     daily: station.daily ?? { sunrise: null, sunset: null, daylightSeconds: null },
     sun: {
