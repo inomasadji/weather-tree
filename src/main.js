@@ -63,22 +63,6 @@ let currentWorld = null;
 let transition = null;
 let stopped = false;
 
-/** Параллакс камеры: цель −1…1 по осям, значение сглаживается в кадре. */
-const viewTarget = { x: 0, y: 0 };
-const view = { x: 0, y: 0 };
-
-stageHolder.addEventListener('pointermove', (event) => {
-  const rect = stageHolder.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-  viewTarget.x = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / rect.width) * 2 - 1));
-  viewTarget.y = Math.max(-1, Math.min(1, ((event.clientY - rect.top) / rect.height) * 2 - 1));
-});
-
-stageHolder.addEventListener('pointerleave', () => {
-  viewTarget.x = 0;
-  viewTarget.y = 0;
-});
-
 /**
  * Новый мир показываем не скачком: старый кадр растворяется в новом
  * по дизерингу Байера (~2.5 с). Смена города — быстрее.
@@ -182,23 +166,17 @@ function frame(now) {
     const drawn = frameGuard.attempt(() => {
       const animMs = reducedMotion ? 0 : now;
 
-      // Камера тянется к указателю плавно; при reduced motion параллакса нет.
-      const ease = 0.09;
-      view.x += (viewTarget.x - view.x) * ease;
-      view.y += (viewTarget.y - view.y) * ease;
-      const sceneView = reducedMotion ? { x: 0, y: 0 } : view;
-
       if (transition && !reducedMotion) {
         const progress = Math.min(1, (now - transition.startedAt) / transition.duration);
-        renderScene(surface, transition.from, at, animMs, sceneView);
-        renderScene(scratch, transition.to, at, animMs, sceneView);
+        renderScene(surface, transition.from, at, animMs);
+        renderScene(scratch, transition.to, at, animMs);
         surface.dissolve(scratch, progress);
         if (progress >= 1) {
           currentWorld = transition.to;
           transition = null;
         }
       } else {
-        renderScene(surface, currentWorld, at, animMs, sceneView);
+        renderScene(surface, currentWorld, at, animMs);
       }
 
       stage.present(surface);

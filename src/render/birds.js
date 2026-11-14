@@ -33,9 +33,9 @@ export function birdFlockAt(timeMs, width = 320) {
 /**
  * Стая: три-пять силуэтов клином, с медленным взмахом.
  * @param {import('./surface.js').Surface} surface
- * @param {{timeMs: number, palette: object, shiftX?: number, shiftY?: number}} options
+ * @param {{timeMs: number, palette: object}} options
  */
-export function drawBirds(surface, { timeMs, palette, shiftX = 0, shiftY = 0 }) {
+export function drawBirds(surface, { timeMs, palette }) {
   const flock = birdFlockAt(timeMs, surface.width);
   if (!flock) return;
 
@@ -50,8 +50,8 @@ export function drawBirds(surface, { timeMs, palette, shiftX = 0, shiftY = 0 }) 
     const side = index % 2 === 0 ? 1 : -1;
     const flap = Math.sin(seconds * 5.2 + index * 1.3) > 0;
 
-    const x = Math.round(flock.x - flock.dir * lag - shiftX);
-    const y = Math.round(flock.y + side * (2 + index) + (flap ? 0 : 1) - shiftY);
+    const x = Math.round(flock.x - flock.dir * lag);
+    const y = Math.round(flock.y + side * (2 + index) + (flap ? 0 : 1));
 
     if (x < -2 || x > surface.width + 2 || y < 2 || y > surface.height) continue;
 
